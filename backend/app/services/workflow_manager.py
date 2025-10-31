@@ -46,20 +46,32 @@ class WorkflowManager:
         # Get or create workflow
         workflow = self.get_workflow(pipeline_id) or self.create_workflow(pipeline_id, user)
         
-        # Process through agent
-        result = await self.agent.process_message(message, pipeline_id)
-        
-        # Update workflow state based on result
-        await self._update_workflow_from_result(workflow, result)
-        
-        # Broadcast state update
-        await self._broadcast_workflow_update(workflow)
-        
-        return {
-            "response": result["response"],
-            "workflow_state": workflow.model_dump(mode='json'),
-            "requires_action": len(workflow.pending_approvals) > 0
-        }
+        try:
+            # Process through agent
+            result = await self.agent.process_message(message, pipeline_id)
+            
+            # Update workflow state based on result
+            await self._update_workflow_from_result(workflow, result)
+            
+            # Broadcast state update
+            await self._broadcast_workflow_update(workflow)
+            
+            return {
+                "response": result["response"],
+                "workflow_state": workflow.model_dump(mode='json'),
+                "requires_action": len(workflow.pending_approvals) > 0
+            }
+        except Exception as e:
+            # Fallback response when LLM is not available
+            print(f"LLM processing failed: {e}")
+            
+            fallback_response = f"I received your message: '{message}'. I'm currently running in mock mode, so I can't process complex requests, but I can help you with basic scraping tasks."
+            
+            return {
+                "response": fallback_response,
+                "workflow_state": workflow.model_dump(mode='json'),
+                "requires_action": False
+            }
     
     async def update_urls(
         self, 

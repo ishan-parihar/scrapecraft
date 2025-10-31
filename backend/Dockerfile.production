@@ -29,14 +29,18 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies first (to leverage Docker layer caching)
+# Install Python dependencies
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Install playwright browsers (kept for compatibility, but not required for enhanced scraping)
-RUN playwright install chromium
-RUN playwright install-deps chromium
+# Install playwright browsers (as root for system-wide installation)
+RUN playwright install chromium --with-deps
+
+# Copy ScrapeGraphAI source code
+COPY Scrapegraph-ai /tmp/scrapegraphai
+WORKDIR /tmp/scrapegraphai
+RUN pip install --no-cache-dir -e .
 
 # Copy backend application code
 WORKDIR /app
@@ -57,5 +61,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application (production mode - no reload)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

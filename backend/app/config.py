@@ -1,10 +1,14 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Optional, Literal
 
 class Settings(BaseSettings):
     # API Keys
     OPENROUTER_API_KEY: str
-    SCRAPEGRAPH_API_KEY: str
+    # Make SCRAPEGRAPH_API_KEY optional for local usage
+    SCRAPEGRAPH_API_KEY: Optional[str] = None
+    
+    # Local scraping flag
+    USE_LOCAL_SCRAPING: bool = False
     
     # Database
     DATABASE_URL: str

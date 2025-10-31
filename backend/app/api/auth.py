@@ -48,7 +48,7 @@ fake_users_db = {
         "username": "testuser",
         "email": "test@example.com",
         "full_name": "Test User",
-        "hashed_password": pwd_context.hash("testpass"),
+        "hashed_password": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6QJw/2Ej7W",  # pre-hashed password "test123"
         "disabled": False,
     }
 }
