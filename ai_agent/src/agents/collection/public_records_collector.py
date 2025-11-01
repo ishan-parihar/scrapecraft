@@ -4,20 +4,27 @@ Public Records Collector Agent for OSINT investigations.
 
 import asyncio
 import time
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from datetime import datetime, timedelta
 
-from ..base.osint_agent import OSINTAgent
+from ..base.osint_agent import LLMOSINTAgent, AgentConfig
+from ...utils.tools.langchain_tools import get_global_tool_manager, ToolManager
 
 
-class PublicRecordsCollectorAgent(OSINTAgent):
+class PublicRecordsCollectorAgent(LLMOSINTAgent):
     """
     Agent responsible for collecting information from public records.
     Handles government databases, court records, property records, business filings, etc.
     """
-    
-    def __init__(self, agent_id: str = "public_records_collector"):
-        super().__init__(agent_id, "Public Records Collector")
+
+    def __init__(self, agent_id: str = "public_records_collector", tools: Optional[List] = None):
+        config = AgentConfig(
+            agent_id=agent_id,
+            role="Public Records Collector",
+            description="Collects information from public records including court records, property records, business filings, and government databases"
+        )
+        super().__init__(config=config, tools=tools)
+        self.tool_manager = ToolManager() if not tools else get_global_tool_manager()
         self.supported_record_types = [
             "court_records", "property_records", "business_filings",
             "voter_registration", "professional_licenses", "tax_records",
@@ -25,7 +32,125 @@ class PublicRecordsCollectorAgent(OSINTAgent):
             "trademarks", "birth_death_marriage", "criminal_records"
         ]
         self.request_delay = 3.0  # Longer delay for government databases
+    
+    async def use_web_scraper(self, website_url: str, user_prompt: str) -> Dict[str, Any]:
+        """
+        Use the web scraper tool to extract data from a specific website.
         
+        Args:
+            website_url: The URL of the website to scrape
+            user_prompt: Natural language prompt describing what data to extract
+            
+        Returns:
+            Dictionary containing the scraped data
+        """
+        self.logger.info(f"Using web scraper on {website_url} with prompt: {user_prompt}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "smart_scraper",
+                website_url=website_url,
+                user_prompt=user_prompt
+            )
+            self.logger.info(f"Web scraper result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using web scraper: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_web_crawler(self, website_url: str, user_prompt: str, max_depth: int = 2, max_pages: int = 5) -> Dict[str, Any]:
+        """
+        Use the web crawler tool to crawl and extract data from a website.
+        
+        Args:
+            website_url: The starting URL for crawling
+            user_prompt: Natural language prompt describing what data to extract
+            max_depth: Maximum crawl depth (default: 2)
+            max_pages: Maximum number of pages to crawl (default: 5)
+            
+        Returns:
+            Dictionary containing the crawled data
+        """
+        self.logger.info(f"Using web crawler starting at {website_url}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "smart_crawler",
+                website_url=website_url,
+                user_prompt=user_prompt,
+                max_depth=max_depth,
+                max_pages=max_pages
+            )
+            self.logger.info(f"Web crawler result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using web crawler: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_search_tool(self, search_query: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Use the search tool to find relevant websites for public records.
+        
+        Args:
+            search_query: The search query to find relevant websites
+            max_results: Maximum number of results to return (default: 10)
+            
+        Returns:
+            Dictionary containing search results
+        """
+        self.logger.info(f"Performing search for: {search_query}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "search_scraper",
+                search_query=search_query,
+                max_results=max_results
+            )
+            self.logger.info(f"Search result count: {result.get('count', 0)}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using search tool: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_markdown_converter(self, website_url: str) -> Dict[str, Any]:
+        """
+        Convert a website to markdown format for easier processing.
+        
+        Args:
+            website_url: The URL of the website to convert to markdown
+            
+        Returns:
+            Dictionary containing the markdown content
+        """
+        self.logger.info(f"Converting {website_url} to markdown")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "markdownify",
+                website_url=website_url
+            )
+            self.logger.info(f"Markdown conversion result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error converting to markdown: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+
     async def search_court_records(
         self, 
         name: str, 
@@ -35,21 +160,21 @@ class PublicRecordsCollectorAgent(OSINTAgent):
     ) -> Dict[str, Any]:
         """
         Search court records for a specific name.
-        
+
         Args:
             name: Name to search for
             jurisdiction: Court jurisdiction (state, county, federal)
             case_type: Optional case type filter
             date_range: Optional date range for search
-            
+
         Returns:
             Dictionary containing court records information
         """
-        self.log_activity(f"Searching court records for {name} in {jurisdiction}")
-        
+        self.logger.info(f"Searching court records for {name} in {jurisdiction}")
+
         try:
             records = await self._simulate_court_record_search(name, jurisdiction, case_type, date_range)
-            
+
             collection_data = {
                 "source": "court_records",
                 "name": name,
@@ -60,12 +185,12 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "total_records": len(records),
                 "collection_success": True
             }
-            
-            self.log_activity(f"Found {len(records)} court records for {name}")
+
+            self.logger.info(f"Found {len(records)} court records for {name}")
             return collection_data
-            
+
         except Exception as e:
-            self.log_activity(f"Error searching court records for {name}: {str(e)}", level="error")
+            self.logger.error(f"Error searching court records for {name}: {str(e)}")
             return {
                 "error": str(e),
                 "source": "court_records",
@@ -73,7 +198,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "jurisdiction": jurisdiction,
                 "collection_success": False
             }
-    
+
     async def search_property_records(
         self, 
         address: Optional[str] = None,
@@ -83,24 +208,24 @@ class PublicRecordsCollectorAgent(OSINTAgent):
     ) -> Dict[str, Any]:
         """
         Search property records.
-        
+
         Args:
             address: Property address
             owner_name: Property owner name
             parcel_id: Parcel identification number
             jurisdiction: Geographic jurisdiction
-            
+
         Returns:
             Dictionary containing property records information
         """
         search_criteria = address or owner_name or parcel_id
-        self.log_activity(f"Searching property records for: {search_criteria}")
-        
+        self.logger.info(f"Searching property records for: {search_criteria}")
+
         try:
             records = await self._simulate_property_record_search(
                 address, owner_name, parcel_id, jurisdiction
             )
-            
+
             collection_data = {
                 "source": "property_records",
                 "search_criteria": {
@@ -114,19 +239,19 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "total_records": len(records),
                 "collection_success": True
             }
-            
-            self.log_activity(f"Found {len(records)} property records")
+
+            self.logger.info(f"Found {len(records)} property records")
             return collection_data
-            
+
         except Exception as e:
-            self.log_activity(f"Error searching property records: {str(e)}", level="error")
+            self.logger.error(f"Error searching property records: {str(e)}")
             return {
                 "error": str(e),
                 "source": "property_records",
                 "search_criteria": search_criteria,
                 "collection_success": False
             }
-    
+
     async def search_business_filings(
         self, 
         business_name: str,
@@ -135,20 +260,20 @@ class PublicRecordsCollectorAgent(OSINTAgent):
     ) -> Dict[str, Any]:
         """
         Search business registration and filing records.
-        
+
         Args:
             business_name: Business name to search for
             jurisdiction: State or jurisdiction of registration
             filing_type: Type of filing (articles, annual reports, etc.)
-            
+
         Returns:
             Dictionary containing business filing information
         """
-        self.log_activity(f"Searching business filings for {business_name} in {jurisdiction}")
-        
+        self.logger.info(f"Searching business filings for {business_name} in {jurisdiction}")
+
         try:
             filings = await self._simulate_business_filing_search(business_name, jurisdiction, filing_type)
-            
+
             collection_data = {
                 "source": "business_filings",
                 "business_name": business_name,
@@ -159,19 +284,19 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "total_filings": len(filings),
                 "collection_success": True
             }
-            
-            self.log_activity(f"Found {len(filings)} business filings for {business_name}")
+
+            self.logger.info(f"Found {len(filings)} business filings for {business_name}")
             return collection_data
-            
+
         except Exception as e:
-            self.log_activity(f"Error searching business filings for {business_name}: {str(e)}", level="error")
+            self.logger.error(f"Error searching business filings for {business_name}: {str(e)}")
             return {
                 "error": str(e),
                 "source": "business_filings",
                 "business_name": business_name,
                 "collection_success": False
             }
-    
+
     async def search_professional_licenses(
         self, 
         name: str,
@@ -181,23 +306,23 @@ class PublicRecordsCollectorAgent(OSINTAgent):
     ) -> Dict[str, Any]:
         """
         Search professional license records.
-        
+
         Args:
             name: Professional's name
             profession: Type of profession
             jurisdiction: Licensing jurisdiction
             license_number: Specific license number if known
-            
+
         Returns:
             Dictionary containing professional license information
         """
-        self.log_activity(f"Searching {profession} licenses for {name} in {jurisdiction}")
-        
+        self.logger.info(f"Searching {profession} licenses for {name} in {jurisdiction}")
+
         try:
             licenses = await self._simulate_professional_license_search(
                 name, profession, jurisdiction, license_number
             )
-            
+
             collection_data = {
                 "source": "professional_licenses",
                 "name": name,
@@ -209,12 +334,12 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "total_licenses": len(licenses),
                 "collection_success": True
             }
-            
-            self.log_activity(f"Found {len(licenses)} professional licenses")
+
+            self.logger.info(f"Found {len(licenses)} professional licenses")
             return collection_data
-            
+
         except Exception as e:
-            self.log_activity(f"Error searching professional licenses: {str(e)}", level="error")
+            self.logger.error(f"Error searching professional licenses: {str(e)}")
             return {
                 "error": str(e),
                 "source": "professional_licenses",
@@ -222,7 +347,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "profession": profession,
                 "collection_success": False
             }
-    
+
     async def search_patent_trademarks(
         self, 
         name: Optional[str] = None,
@@ -233,24 +358,24 @@ class PublicRecordsCollectorAgent(OSINTAgent):
     ) -> Dict[str, Any]:
         """
         Search patent and trademark records.
-        
+
         Args:
             name: Inventor or owner name
             company: Company name
             patent_number: Specific patent number
             trademark_name: Trademark name
             search_type: Type of search ("patents", "trademarks", "both")
-            
+
         Returns:
             Dictionary containing patent and trademark information
         """
-        self.log_activity(f"Searching patents/trademarks for: {name or company or patent_number}")
-        
+        self.logger.info(f"Searching patents/trademarks for: {name or company or patent_number}")
+
         try:
             results = await self._simulate_patent_trademark_search(
                 name, company, patent_number, trademark_name, search_type
             )
-            
+
             collection_data = {
                 "source": "patent_trademark_records",
                 "search_criteria": {
@@ -265,31 +390,37 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "total_results": len(results),
                 "collection_success": True
             }
-            
-            self.log_activity(f"Found {len(results)} patent/trademark records")
+
+            self.logger.info(f"Found {len(results)} patent/trademark records")
             return collection_data
-            
+
         except Exception as e:
-            self.log_activity(f"Error searching patent/trademark records: {str(e)}", level="error")
+            self.logger.error(f"Error searching patent/trademark records: {str(e)}")
             return {
                 "error": str(e),
                 "source": "patent_trademark_records",
                 "collection_success": False
             }
-    
+
     async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """
         Execute a public records collection task.
-        
+
         Args:
             task: Task dictionary containing collection parameters
-            
+
         Returns:
             Dictionary containing collection results
         """
         task_type = task.get("task_type", "court_records")
-        results = []
         
+        # Handle LangChain tool-based tasks
+        if task_type == "langchain_tool":
+            return await self._execute_langchain_tool_task(task)
+        
+        # Handle traditional simulation tasks
+        results = []
+
         if task_type == "court_records":
             # Court records search
             searches = task.get("searches", [])
@@ -304,7 +435,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                     )
                     results.append(result)
                     await asyncio.sleep(self.request_delay)
-        
+
         elif task_type == "property_records":
             # Property records search
             searches = task.get("searches", [])
@@ -317,7 +448,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 )
                 results.append(result)
                 await asyncio.sleep(self.request_delay)
-        
+
         elif task_type == "business_filings":
             # Business filings search
             searches = task.get("searches", [])
@@ -331,7 +462,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                     )
                     results.append(result)
                     await asyncio.sleep(self.request_delay)
-        
+
         elif task_type == "professional_licenses":
             # Professional licenses search
             searches = task.get("searches", [])
@@ -346,7 +477,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                     )
                     results.append(result)
                     await asyncio.sleep(self.request_delay)
-        
+
         elif task_type == "patent_trademarks":
             # Patent and trademark search
             searches = task.get("searches", [])
@@ -360,16 +491,63 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 )
                 results.append(result)
                 await asyncio.sleep(self.request_delay)
-        
+
         return {
-            "agent_id": self.agent_id,
+            "agent_id": self.config.agent_id,
             "task_type": task_type,
             "timestamp": time.time(),
             "results": results,
             "total_collections": len(results),
             "status": "completed"
         }
-    
+     
+    async def _execute_langchain_tool_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a LangChain tool-based task.
+
+        Args:
+            task: Task dictionary containing tool execution parameters
+
+        Returns:
+            Dictionary containing tool execution results
+        """
+        tool_name = task.get("tool_name")
+        tool_args = task.get("tool_args", {})
+        
+        if not tool_name:
+            return {
+                "success": False,
+                "error": "Tool name not specified in task",
+                "agent_id": self.config.agent_id,
+                "timestamp": time.time(),
+                "status": "failed"
+            }
+        
+        self.logger.info(f"Executing LangChain tool: {tool_name} with args: {tool_args}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(tool_name, **tool_args)
+            return {
+                "success": result.get("success", False),
+                "tool_name": tool_name,
+                "tool_args": tool_args,
+                "result": result,
+                "agent_id": self.config.agent_id,
+                "timestamp": time.time(),
+                "status": "completed"
+            }
+        except Exception as e:
+            self.logger.error(f"Error executing LangChain tool {tool_name}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "tool_name": tool_name,
+                "tool_args": tool_args,
+                "agent_id": self.config.agent_id,
+                "timestamp": time.time(),
+                "status": "failed"
+            }
+
     async def _simulate_court_record_search(
         self, 
         name: str, 
@@ -380,7 +558,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
         """Simulate court record search."""
         records = []
         case_types = ["civil", "criminal", "family", "probate", "traffic"]
-        
+
         for i in range(min(5, len(case_types))):
             record = {
                 "case_number": f"{jurisdiction.upper()}_2024_{100 + i}",
@@ -397,9 +575,9 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "judgment_amount": f"${(i+1) * 5000}" if case_types[i] == "civil" else None
             }
             records.append(record)
-        
+
         return records
-    
+
     async def _simulate_property_record_search(
         self, 
         address: Optional[str],
@@ -409,7 +587,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
     ) -> List[Dict[str, Any]]:
         """Simulate property record search."""
         records = []
-        
+
         for i in range(3):
             record = {
                 "parcel_id": parcel_id or f"{jurisdiction}-{1000 + i}",
@@ -429,9 +607,9 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "mortgage_lender": f"Bank {i+1}" if i < 2 else None
             }
             records.append(record)
-        
+
         return records
-    
+
     async def _simulate_business_filing_search(
         self, 
         business_name: str, 
@@ -441,7 +619,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
         """Simulate business filing search."""
         filings = []
         filing_types = ["articles_of_incorporation", "annual_report", " amendment", "dissolution"]
-        
+
         for i in range(4):
             filing = {
                 "filing_id": f"{jurisdiction}_{business_name.replace(' ', '_')}_{100 + i}",
@@ -459,9 +637,9 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "good_standing": i < 3
             }
             filings.append(filing)
-        
+
         return filings
-    
+
     async def _simulate_professional_license_search(
         self, 
         name: str, 
@@ -471,7 +649,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
     ) -> List[Dict[str, Any]]:
         """Simulate professional license search."""
         licenses = []
-        
+
         for i in range(2):
             license_data = {
                 "license_number": license_number or f"{profession.upper()[:3]}{10000 + i}",
@@ -490,9 +668,9 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                 "verification_code": f"VERIFY{100 + i}"
             }
             licenses.append(license_data)
-        
+
         return licenses
-    
+
     async def _simulate_patent_trademark_search(
         self, 
         name: Optional[str],
@@ -503,7 +681,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
     ) -> List[Dict[str, Any]]:
         """Simulate patent and trademark search."""
         results = []
-        
+
         if search_type in ["patents", "both"]:
             for i in range(3):
                 patent = {
@@ -522,7 +700,7 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                     "citations": 5 + i * 3
                 }
                 results.append(patent)
-        
+
         if search_type in ["trademarks", "both"]:
             for i in range(3):
                 trademark = {
@@ -541,15 +719,44 @@ class PublicRecordsCollectorAgent(OSINTAgent):
                     "international_registration": i < 2
                 }
                 results.append(trademark)
-        
+
         return results
-    
+
     def _generate_date(self, days_ago: int) -> str:
         """Generate date string for days ago."""
         date = datetime.now() - timedelta(days=days_ago)
         return date.strftime("%Y-%m-%d")
-    
+
     def _generate_future_date(self, days_ahead: int) -> str:
         """Generate future date string."""
         date = datetime.now() + timedelta(days=days_ahead)
         return date.strftime("%Y-%m-%d")
+
+    def _get_system_prompt(self) -> str:
+        """Get the system prompt for the LLM."""
+        return """
+        You are an expert Public Records Collector AI assistant. Your role is to collect information 
+        from public records including court records, property records, business filings, and government databases.
+
+        When given a request, you should:
+        1. Identify the specific type of public record needed
+        2. Determine the appropriate search parameters
+        3. Execute the search using the available tools
+        4. Return structured results in the appropriate format
+        5. Always prioritize accuracy and relevance
+
+        Available record types: court_records, property_records, business_filings, 
+        voter_registration, professional_licenses, tax_records, immigration_records, 
+        corporate_documents, patents, trademarks, birth_death_marriage, criminal_records
+        """
+
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
+        """Process the LLM response and extract structured output."""
+        # For now, return the raw response - in a real implementation,
+        # this would parse the LLM response into structured data
+        return {"raw_response": raw_output}
+    
+    def validate_input(self, input_data: Dict[str, Any]) -> bool:
+        """Validate the input data before processing."""
+        required_fields = ["task_type"]
+        return all(field in input_data for field in required_fields)

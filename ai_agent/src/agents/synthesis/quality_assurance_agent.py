@@ -69,18 +69,20 @@ class QualityAssuranceAgent(SynthesisAgentBase):
         self.config = config or {}
         self.logger = logging.getLogger(f"{__name__}.{self.name}")
         
-        # Quality assurance parameters
+# Quality assurance parameters
         self.qa_config = {
             "min_source_reliability": 0.4,
             "min_fact_accuracy": 0.5,
             "max_bias_threshold": 0.5,
             "min_consistency_score": 0.6,
+            "min_source_link_coverage": 0.9,  # 90% of claims must have source links
             "quality_weights": {
-                "source_reliability": 0.25,
+                "source_reliability": 0.20,
                 "fact_accuracy": 0.25,
-                "bias_mitigation": 0.2,
-                "consistency": 0.2,
-                "completeness": 0.1
+                "bias_mitigation": 0.15,
+                "consistency": 0.15,
+                "completeness": 0.10,
+                "source_link_coverage": 0.15  # New weight for source link verification
             },
             "bias_indicators": [
                 "confirmation_bias", "selection_bias", "anchoring_bias",

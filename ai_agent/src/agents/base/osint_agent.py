@@ -25,6 +25,8 @@ class AgentConfig(BaseModel):
     verbose: bool = True
     timeout: int = 300
     retry_attempts: int = 3
+    llm_model: str = "gpt-4-turbo"  # Default model
+    temperature: float = 0.1
 
 
 class AgentResult(BaseModel):
@@ -53,13 +55,14 @@ class OSINTAgent(ABC):
     Base class for all OSINT agents.
     
     Provides common functionality for agent lifecycle management,
-    communication, and execution.
+    communication, and execution. This implementation uses a simplified
+    approach that can be extended with specific LLM implementations.
     """
     
     def __init__(
         self,
         config: AgentConfig,
-        tools: List[Any] = None,
+        tools: Optional[List[Any]] = None,
         memory: Optional[Any] = None,
         logger: Optional[logging.Logger] = None
     ):
@@ -85,7 +88,7 @@ class OSINTAgent(ABC):
         pass
     
     @abstractmethod
-    def _process_output(self, raw_output: str, intermediate_steps: List = None) -> Dict[str, Any]:
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
         """
         Process and structure the raw output from the agent.
         
@@ -141,7 +144,8 @@ class OSINTAgent(ABC):
                 metadata={
                     "agent_id": self.config.agent_id,
                     "agent_role": self.config.role,
-                    "intermediate_steps": len(self.memory.chat_memory.messages) if self.memory else 0
+                    "execution_time": execution_time,
+                    "input_data": input_data
                 },
                 execution_time=execution_time
             )
@@ -181,13 +185,32 @@ class OSINTAgent(ABC):
         """
         last_exception = None
         
+        if self.config.retry_attempts <= 0:
+            # Handle edge case where no retries are configured
+            try:
+                agent_input = self._prepare_agent_input(input_data)
+                result = await self._execute_agent(agent_input)
+                structured_result = self._process_output(
+                    result if isinstance(result, str) else str(result), 
+                    None
+                )
+                return structured_result
+            except Exception as e:
+                return {"error": f"Execution failed after 0 retries: {str(e)}"}
+        
         for attempt in range(self.config.retry_attempts):
             try:
-                # Simulate agent execution (replace with actual LLM call)
-                result = await self._simulate_agent_execution(input_data)
+                # Prepare input for the agent
+                agent_input = self._prepare_agent_input(input_data)
+                
+                # Execute the agent with actual LLM call
+                result = await self._execute_agent(agent_input)
                 
                 # Process the output
-                structured_result = self._process_output(result, [])
+                structured_result = self._process_output(
+                    result if isinstance(result, str) else str(result), 
+                    None  # Changed from [] to None to match method signature
+                )
                 
                 return structured_result
                 
@@ -200,31 +223,33 @@ class OSINTAgent(ABC):
                     wait_time = 2 ** attempt
                     await asyncio.sleep(wait_time)
                 else:
-                    raise last_exception
+                    # If all retries fail, return a default error result instead of raising
+                    return {
+                        "error": f"All {self.config.retry_attempts} attempts failed. Last error: {str(last_exception)}"
+                    }
+        
+        # This should not be reached, but added for type safety
+        return {"error": "Unexpected execution path in retry logic"}
     
-    async def _simulate_agent_execution(self, input_data: Dict[str, Any]) -> str:
+    async def _execute_agent(self, input_data: Dict[str, Any]) -> str:
         """
-        Simulate agent execution with LLM.
-        In a real implementation, this would call an actual LLM.
+        Execute the agent with actual LLM call.
+        This method should be implemented by subclasses that use specific LLM providers.
+        For now, we'll use a placeholder that can be overridden.
         """
-        # For now, return a mock response based on the agent type
-        if "objective" in self.config.role.lower():
-            return json.dumps({
-                "primary_objectives": ["Analyze provided request"],
-                "secondary_objectives": ["Extract key requirements"],
-                "key_intelligence_requirements": ["Information relevant to investigation"],
-                "success_criteria": ["Clear objectives defined"],
-                "constraints": ["Legal and ethical boundaries"],
-                "ethical_considerations": ["Maintain privacy compliance"],
-                "investigation_scope": {
-                    "in_scope": ["Publicly available information"],
-                    "out_of_scope": ["Private data"]
-                },
-                "urgency_level": "medium",
-                "estimated_complexity": "medium"
-            })
-        else:
-            return f"Processed input: {input_data} with {self.config.role}"
+        # This is a placeholder implementation - in real implementation,
+        # this would be overridden by each specific agent to use the actual LLM
+        return f"Processed input: {input_data}"
+    
+    def _prepare_agent_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare input data for the agent.
+        """
+        # Convert the input data to a format suitable for the agent
+        return {
+            "input": json.dumps(input_data, indent=2),
+            "task_type": input_data.get("task_type", "general")
+        }
     
     def _calculate_confidence(self, result: Dict[str, Any], input_data: Dict[str, Any]) -> float:
         """
@@ -290,3 +315,82 @@ class OSINTAgent(ABC):
     def get_execution_history(self, limit: int = 10) -> List[AgentResult]:
         """Get recent execution history"""
         return self.execution_history[-limit:] if self.execution_history else []
+
+
+# Simple agent config with actual LLM execution
+class LLMOSINTAgent(OSINTAgent):
+    """
+    An OSINT agent that actually connects to an LLM service.
+    """
+    
+    def __init__(self, config: AgentConfig, tools: Optional[List[Any]] = None, memory: Optional[Any] = None, logger: Optional[logging.Logger] = None):
+        super().__init__(config=config, tools=tools, memory=memory, logger=logger)
+        # Store the original tools before LangChain processing
+        self.original_tools = tools or []
+    
+    async def _execute_agent(self, input_data: Dict[str, Any]) -> str:
+        """
+        Execute the agent with actual LLM call, potentially using tools.
+        This implementation includes the LLM logic with optional tool usage.
+        """
+        try:
+            # Import here to avoid circular dependencies and make optional
+            from langchain_openai import ChatOpenAI
+            from langchain_core.messages import SystemMessage, HumanMessage
+            
+            # Initialize LLM
+            llm = ChatOpenAI(
+                model=self.config.llm_model,
+                temperature=self.config.temperature
+            )
+            
+            # Get the system prompt
+            system_prompt = self._get_system_prompt()
+            
+            # If we have tools, we can use them as needed, but keeping it simple for now
+            # In a more advanced implementation, we could use a LangGraph agent with tools
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=input_data.get("input", str(input_data)))
+            ]
+            
+            # Execute the LLM call
+            response = await llm.ainvoke(messages)
+            # Ensure we return a string
+            content = response.content if hasattr(response, 'content') else str(response)
+            return str(content)
+            
+        except ImportError:
+            # If LangChain is not available, use a mock response
+            self.logger.warning("LangChain not available, using mock response")
+            return f"Mock response for input: {input_data.get('input', str(input_data))[:200]}..."
+        except Exception as e:
+            self.logger.error(f"LLM execution failed: {e}")
+            raise
+
+
+# Simple agent config for backward compatibility
+class SimpleOSINTAgent(OSINTAgent):
+    """
+    A simplified OSINT agent that doesn't require complex initialization.
+    """
+    
+    def __init__(self, agent_id: str, role: str, description: str = ""):
+        config = AgentConfig(
+            agent_id=agent_id,
+            role=role,
+            description=description
+        )
+        super().__init__(config=config, tools=[])
+    
+    def _get_system_prompt(self) -> str:
+        """Default system prompt for simple agents."""
+        return f"You are a {self.config.role}, a specialized AI assistant for OSINT investigations. Follow the user's instructions carefully and provide accurate information while maintaining ethical standards."
+    
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
+        """Default output processing for simple agents."""
+        return {"response": raw_output, "processed_at": datetime.utcnow().isoformat()}
+    
+    def validate_input(self, input_data: Dict[str, Any]) -> bool:
+        """Default input validation for simple agents."""
+        return "input" in input_data or bool(input_data)

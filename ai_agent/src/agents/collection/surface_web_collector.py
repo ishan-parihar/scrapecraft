@@ -9,17 +9,25 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from ..base.osint_agent import OSINTAgent
+from ..base.osint_agent import LLMOSINTAgent, AgentConfig
+from ...utils.tools.langchain_tools import get_global_tool_manager
 
 
-class SurfaceWebCollectorAgent(OSINTAgent):
+class SurfaceWebCollectorAgent(LLMOSINTAgent):
     """
     Agent responsible for collecting information from the surface web.
     Handles search engines, public websites, and openly accessible content.
     """
     
-    def __init__(self, agent_id: str = "surface_web_collector"):
-        super().__init__(agent_id, "Surface Web Collector")
+    def __init__(self, agent_id: str = "surface_web_collector", tools: Optional[List[Any]] = None):
+        config = AgentConfig(
+            agent_id=agent_id,
+            role="Surface Web Collector",
+            description="Collects information from search engines, public websites, and surface web content"
+        )
+        # Initialize with tools
+        super().__init__(config=config, tools=tools or [])
+        self.tool_manager = get_global_tool_manager()
         self.supported_search_engines = [
             "google", "bing", "duckduckgo", "yahoo", "yandex"
         ]
@@ -28,6 +36,57 @@ class SurfaceWebCollectorAgent(OSINTAgent):
             "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         )
         self.request_delay = 1.0  # Delay between requests to avoid rate limiting
+        self.supported_search_engines = [
+            "google", "bing", "duckduckgo", "yahoo", "yandex"
+        ]
+        self.user_agent = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        )
+        self.request_delay = 1.0  # Delay between requests to avoid rate limiting
+    
+    def _get_system_prompt(self) -> str:
+        """
+        Get the system prompt for the Surface Web Collector Agent.
+        """
+        return """
+        You are a Surface Web Collector Agent, specialized in gathering information from publicly accessible websites, 
+        search engines, and surface web resources. Your role is to collect relevant information based on the user's 
+        request while maintaining ethical standards and respecting website terms of service.
+
+        You should:
+        1. Use proper search techniques to find relevant information
+        2. Extract meaningful content from web pages
+        3. Identify and collect domain-related information
+        4. Respect rate limits and website policies
+        5. Structure the collected information in a clear, organized format
+        """
+    
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
+        """
+        Process and structure the raw output from the agent.
+        """
+        # For the collection agent, we return the raw collected data
+        return {
+            "collection_results": raw_output,
+            "processed_at": time.time(),
+            "agent_type": "SurfaceWebCollector"
+        }
+    
+    def validate_input(self, input_data: Dict[str, Any]) -> bool:
+        """
+        Validate input data before execution.
+        """
+        # Check if the input contains necessary information
+        if not input_data:
+            return False
+        
+        # For collection tasks, ensure we have a task type
+        task_type = input_data.get("task_type")
+        if not task_type or task_type not in ["search", "scrape", "domain"]:
+            return False
+        
+        return True
         
     async def collect_from_search_engine(
         self, 
@@ -46,7 +105,7 @@ class SurfaceWebCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing search results and metadata
         """
-        self.log_activity(f"Searching {engine} for: {query}")
+        self.logger.info(f"Searching {engine} for: {query}")
         
         try:
             # Simulate search engine results (in production, would use actual APIs)
@@ -61,11 +120,11 @@ class SurfaceWebCollectorAgent(OSINTAgent):
                 "search_engine": engine
             }
             
-            self.log_activity(f"Found {len(results)} results from {engine}")
+            self.logger.info(f"Found {len(results)} results from {engine}")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error searching {engine}: {str(e)}", level="error")
+            self.logger.error(f"Error searching {engine}: {str(e)}")
             return {"error": str(e), "source": f"search_engine_{engine}"}
     
     async def scrape_website(
@@ -85,7 +144,7 @@ class SurfaceWebCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing scraped content and metadata
         """
-        self.log_activity(f"Scraping website: {url}")
+        self.logger.info(f"Scraping website: {url}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -114,11 +173,11 @@ class SurfaceWebCollectorAgent(OSINTAgent):
                     "scraped_successfully": True
                 }
                 
-                self.log_activity(f"Successfully scraped {url}")
+                self.logger.info(f"Successfully scraped {url}")
                 return collection_data
                 
         except Exception as e:
-            self.log_activity(f"Error scraping {url}: {str(e)}", level="error")
+            self.logger.error(f"Error scraping {url}: {str(e)}")
             return {
                 "error": str(e), 
                 "source": "website_scrape",
@@ -136,7 +195,7 @@ class SurfaceWebCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing domain information
         """
-        self.log_activity(f"Collecting domain info for: {domain}")
+        self.logger.info(f"Collecting domain info for: {domain}")
         
         try:
             # Simulate domain information collection
@@ -158,11 +217,11 @@ class SurfaceWebCollectorAgent(OSINTAgent):
                 "collection_success": True
             }
             
-            self.log_activity(f"Domain info collected for {domain}")
+            self.logger.info(f"Domain info collected for {domain}")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error collecting domain info for {domain}: {str(e)}", level="error")
+            self.logger.error(f"Error collecting domain info for {domain}: {str(e)}")
             return {
                 "error": str(e),
                 "source": "domain_analysis",
@@ -196,14 +255,41 @@ class SurfaceWebCollectorAgent(OSINTAgent):
                     await asyncio.sleep(self.request_delay)
         
         elif task_type == "scrape":
-            # Website scraping
+            # Use scraping tools for website scraping
             urls = task.get("urls", [])
-            extract_links = task.get("extract_links", True)
-            max_depth = task.get("max_depth", 1)
+            user_prompt = task.get("user_prompt", "Extract all relevant information")
             
             for url in urls:
-                result = await self.scrape_website(url, extract_links, max_depth)
-                results.append(result)
+                # Use the smart scraper tool if available
+                tool_result = await self._use_smart_scraper_tool(url, user_prompt)
+                if tool_result["success"]:
+                    results.append(tool_result)
+                else:
+                    # Fall back to traditional scraping
+                    result = await self.scrape_website(url)
+                    results.append(result)
+                await asyncio.sleep(self.request_delay)
+        
+        elif task_type == "crawl":
+            # Use scraping tools for crawling websites
+            urls = task.get("urls", [])
+            user_prompt = task.get("user_prompt", "Extract all relevant information")
+            max_depth = task.get("max_depth", 2)
+            max_pages = task.get("max_pages", 5)
+            
+            for url in urls:
+                # Use the smart crawler tool if available
+                tool_result = await self._use_smart_crawler_tool(url, user_prompt, max_depth, max_pages)
+                if tool_result["success"]:
+                    results.append(tool_result)
+                else:
+                    # For now, we'll fall back to a basic approach
+                    fallback_result = {
+                        "url": url,
+                        "error": "Crawler tool not available, using basic method",
+                        "fallback_performed": True
+                    }
+                    results.append(fallback_result)
                 await asyncio.sleep(self.request_delay)
         
         elif task_type == "domain":
@@ -216,13 +302,127 @@ class SurfaceWebCollectorAgent(OSINTAgent):
                 await asyncio.sleep(self.request_delay)
         
         return {
-            "agent_id": self.agent_id,
+            "agent_id": self.config.agent_id,
             "task_type": task_type,
             "timestamp": time.time(),
             "results": results,
             "total_collections": len(results),
             "status": "completed"
         }
+
+    async def _use_smart_scraper_tool(self, url: str, user_prompt: str) -> Dict[str, Any]:
+        """
+        Use the smart scraper tool to extract data from a website.
+        
+        Args:
+            url: URL to scrape
+            user_prompt: Natural language description of what to extract
+            
+        Returns:
+            Dictionary containing scraper tool results
+        """
+        try:
+            # Run the smart scraper tool
+            result = await self.tool_manager.execute_tool(
+                "smart_scraper",
+                website_url=url,
+                user_prompt=user_prompt
+            )
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using smart scraper tool for {url}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "url": url,
+                "tool_used": "smart_scraper"
+            }
+    
+    async def _use_smart_crawler_tool(self, url: str, user_prompt: str, max_depth: int = 2, max_pages: int = 5) -> Dict[str, Any]:
+        """
+        Use the smart crawler tool to crawl and extract data from a website.
+        
+        Args:
+            url: Starting URL to crawl
+            user_prompt: Natural language description of what to extract
+            max_depth: Maximum crawling depth
+            max_pages: Maximum number of pages to crawl
+            
+        Returns:
+            Dictionary containing crawler tool results
+        """
+        try:
+            # Run the smart crawler tool
+            result = await self.tool_manager.execute_tool(
+                "smart_crawler",
+                website_url=url,
+                user_prompt=user_prompt,
+                max_depth=max_depth,
+                max_pages=max_pages
+            )
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using smart crawler tool for {url}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "url": url,
+                "tool_used": "smart_crawler"
+            }
+    
+    async def _use_search_scraper_tool(self, search_query: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Use the search scraper tool to find and extract data from multiple websites.
+        
+        Args:
+            search_query: Search query to find relevant websites
+            max_results: Maximum number of results to return
+            
+        Returns:
+            Dictionary containing search scraper results
+        """
+        try:
+            # Run the search scraper tool
+            result = await self.tool_manager.execute_tool(
+                "search_scraper",
+                search_query=search_query,
+                max_results=max_results
+            )
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using search scraper tool for '{search_query}': {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "query": search_query,
+                "tool_used": "search_scraper"
+            }
+    
+    async def _use_markdownify_tool(self, url: str) -> Dict[str, Any]:
+        """
+        Use the markdownify tool to convert a website to markdown format.
+        
+        Args:
+            url: URL to convert to markdown
+            
+        Returns:
+            Dictionary containing markdown conversion results
+        """
+        try:
+            # Run the markdownify tool
+            result = await self.tool_manager.execute_tool(
+                "markdownify",
+                website_url=url
+            )
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using markdownify tool for {url}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "url": url,
+                "tool_used": "markdownify"
+            }
     
     async def _simulate_search_results(
         self, 
@@ -246,41 +446,68 @@ class SurfaceWebCollectorAgent(OSINTAgent):
     
     def _extract_content(self, soup: BeautifulSoup, url: str) -> Dict[str, Any]:
         """Extract content from parsed HTML."""
+        # Extract title safely
+        title_tag = soup.find('title')
+        if title_tag:
+            title = title_tag.get_text().strip()
+            title = str(title) if title else ""
+        else:
+            title = ""
+        
+        text_content = soup.get_text(strip=True)
+        text_content = str(text_content) if text_content else ""
+        
+        word_text = soup.get_text()
+        word_count = len(word_text.split())
+        
         return {
-            "title": soup.title.string if soup.title else "",
+            "title": title,
             "meta_description": self._get_meta_description(soup),
             "headings": self._extract_headings(soup),
-            "text_content": soup.get_text(strip=True)[:1000],  # First 1000 chars
-            "images": [img.get('src', '') for img in soup.find_all('img')[:5]],
+            "text_content": text_content[:1000],  # First 1000 chars
+            "images": [img.get('src', '') or '' for img in soup.find_all('img')[:5]],
             "forms": len(soup.find_all('form')),
             "links_count": len(soup.find_all('a')),
-            "word_count": len(soup.get_text().split())
+            "word_count": word_count
         }
     
     def _get_meta_description(self, soup: BeautifulSoup) -> str:
         """Extract meta description from HTML."""
         meta_desc = soup.find('meta', attrs={'name': 'description'})
-        return meta_desc.get('content', '') if meta_desc else ''
+        if meta_desc:
+            content = meta_desc.get('content', '')
+            content = str(content) if content else ''
+            return content
+        return ''
     
     def _extract_headings(self, soup: BeautifulSoup) -> Dict[str, List[str]]:
         """Extract headings from HTML."""
         headings = {}
         for level in range(1, 7):
             tags = soup.find_all(f'h{level}')
-            headings[f'h{level}'] = [tag.get_text().strip() for tag in tags[:5]]
+            heading_texts = []
+            for tag in tags[:5]:
+                text = tag.get_text().strip()
+                heading_texts.append(text if text else '')
+            headings[f'h{level}'] = heading_texts
         return headings
     
     def _extract_links(self, soup: BeautifulSoup, base_url: str) -> List[Dict[str, Any]]:
         """Extract links from HTML."""
         links = []
         for link in soup.find_all('a', href=True)[:10]:
-            href = link['href']
+            href = link.get('href', '') or ''
+            href = str(href) if href else ''
             absolute_url = urljoin(base_url, href)
+            raw_text = link.get_text()
+            text = str(raw_text).strip()
+            title = link.get('title', '') or ''
+            target = link.get('target', '') or ''
             links.append({
                 "url": absolute_url,
-                "text": link.get_text().strip(),
-                "title": link.get('title', ''),
-                "target": link.get('target', '')
+                "text": text,
+                "title": title,
+                "target": target
             })
         return links
     

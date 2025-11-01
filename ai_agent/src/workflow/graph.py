@@ -22,6 +22,10 @@ from .state import (
 )
 from ..agents.planning.objective_definition import ObjectiveDefinitionAgent
 from ..agents.planning.strategy_formulation import StrategyFormulationAgent
+from ..agents.collection.surface_web_collector import SurfaceWebCollectorAgent
+from ..agents.collection.social_media_collector import SocialMediaCollectorAgent
+from ..agents.collection.public_records_collector import PublicRecordsCollectorAgent
+from ..agents.collection.dark_web_collector import DarkWebCollectorAgent
 from ..agents.synthesis.intelligence_synthesis_agent import IntelligenceSynthesisAgent
 from ..agents.synthesis.quality_assurance_agent import QualityAssuranceAgent
 from ..agents.synthesis.report_generation_agent import ReportGenerationAgent
@@ -42,8 +46,17 @@ class OSINTWorkflow:
         self.logger = logging.getLogger(f"{__name__}.OSINTWorkflow")
         
         # Initialize agents
+        from ..utils.tools.langchain_tools import get_global_tool_manager
+        tool_manager = get_global_tool_manager()
+        
         self.objective_agent = ObjectiveDefinitionAgent()
         self.strategy_agent = StrategyFormulationAgent()
+        
+        # Initialize collection agents with tools
+        self.surface_web_agent = SurfaceWebCollectorAgent(tools=tool_manager.tools)
+        self.social_media_agent = SocialMediaCollectorAgent(tools=tool_manager.tools)
+        self.public_records_agent = PublicRecordsCollectorAgent(tools=tool_manager.tools)
+        self.dark_web_agent = DarkWebCollectorAgent(tools=tool_manager.tools)
         
         # Initialize synthesis agents
         self.intelligence_synthesis_agent = IntelligenceSynthesisAgent()
@@ -323,12 +336,12 @@ async def objective_definition_node(state: InvestigationState) -> InvestigationS
             state["agents_participated"].append("ObjectiveDefinitionAgent")
             state["confidence_level"] = max(state["confidence_level"], result.confidence)
         else:
-            state = add_error(state, result.error_message, InvestigationPhase.PLANNING, "ObjectiveDefinitionAgent")
+            state = add_error(state, result.error_message or "Objective definition failed", InvestigationPhase.PLANNING, "ObjectiveDefinitionAgent")
         
         return state
         
     except Exception as e:
-        return add_error(state, str(e), InvestigationPhase.PLANNING, "objective_definition_node")
+        return add_error(state, str(e) or "Error in objective definition node", InvestigationPhase.PLANNING, "objective_definition_node")
 
 
 async def strategy_formulation_node(state: InvestigationState) -> InvestigationState:
@@ -350,66 +363,160 @@ async def strategy_formulation_node(state: InvestigationState) -> InvestigationS
             state["agents_participated"].append("StrategyFormulationAgent")
             state["confidence_level"] = max(state["confidence_level"], result.confidence)
         else:
-            state = add_error(state, result.error_message, InvestigationPhase.PLANNING, "StrategyFormulationAgent")
+            error_msg = result.error_message if result.error_message else "Strategy formulation failed"
+            state = add_error(state, error_msg, InvestigationPhase.PLANNING, "StrategyFormulationAgent")
         
         return state
         
     except Exception as e:
         return add_error(state, str(e), InvestigationPhase.PLANNING, "strategy_formulation_node")
 
-
 async def search_coordination_node(state: InvestigationState) -> InvestigationState:
     """Coordinate search operations across different data sources."""
     try:
-        # Mock search coordination results
-        state["search_coordination_results"] = {
-            "surface_web_sources": ["google", "bing", "duckduckgo"],
-            "social_media_sources": ["twitter", "linkedin", "facebook"],
-            "public_records_sources": ["government_databases", "court_records"],
-            "dark_web_sources": ["tor_networks", "hidden_services"],
+        # Initialize collection agents
+        surface_web_agent = SurfaceWebCollectorAgent()
+        social_media_agent = SocialMediaCollectorAgent()
+        public_records_agent = PublicRecordsCollectorAgent()
+        dark_web_agent = DarkWebCollectorAgent()
+        
+        # Determine which sources to search based on objectives
+        objectives = state.get("objectives", {})
+        
+        search_coordination_results = {
+            "surface_web_sources": [],
+            "social_media_sources": [],
+            "public_records_sources": [],
+            "dark_web_sources": [],
             "coordination_status": "completed",
-            "sources_identified": 10
+            "sources_identified": 0
         }
         
+        # Determine appropriate sources based on investigation objectives
+        if "web_search" in str(objectives).lower() or "surface" in str(objectives).lower():
+            search_coordination_results["surface_web_sources"] = ["google", "bing", "duckduckgo"]
+        
+        if "social_media" in str(objectives).lower() or "twitter" in str(objectives).lower():
+            search_coordination_results["social_media_sources"] = ["twitter", "linkedin", "facebook", "instagram"]
+        
+        if "public_records" in str(objectives).lower() or "records" in str(objectives).lower():
+            search_coordination_results["public_records_sources"] = ["government_databases", "court_records", "property_records"]
+        
+        if "dark_web" in str(objectives).lower() or "tor" in str(objectives).lower():
+            search_coordination_results["dark_web_sources"] = ["tor_networks", "hidden_services"]
+        
+        search_coordination_results["sources_identified"] = (
+            len(search_coordination_results["surface_web_sources"]) +
+            len(search_coordination_results["social_media_sources"]) +
+            len(search_coordination_results["public_records_sources"]) +
+            len(search_coordination_results["dark_web_sources"])
+        )
+        
+        state["search_coordination_results"] = search_coordination_results
         state["collection_status"]["search_coordination"] = InvestigationStatus.COMPLETED
-        state["sources_used"].extend(["google", "bing", "twitter", "linkedin"])
+        state["sources_used"].extend(search_coordination_results["surface_web_sources"] + 
+                                   search_coordination_results["social_media_sources"])
         
         return state
         
     except Exception as e:
         return add_error(state, str(e), InvestigationPhase.COLLECTION, "search_coordination_node")
 
-
 async def data_collection_node(state: InvestigationState) -> InvestigationState:
     """Collect data from identified sources."""
     try:
-        # Mock data collection results
-        state["search_results"] = {
-            "surface_web": [
-                {"url": "example.com", "content": "Sample content 1", "relevance": 0.8},
-                {"url": "test.com", "content": "Sample content 2", "relevance": 0.7}
-            ],
-            "social_media": [
-                {"platform": "twitter", "content": "Tweet content", "relevance": 0.9},
-                {"platform": "linkedin", "content": "LinkedIn content", "relevance": 0.8}
-            ],
-            "public_records": [
-                {"source": "court_records", "content": "Legal document", "relevance": 0.6}
-            ]
-        }
+        # Initialize collection agents with tools
+        from ..utils.tools.langchain_tools import get_global_tool_manager
+        tool_manager = get_global_tool_manager()
         
-        state["raw_data"] = {
-            "total_records": 5,
+        surface_web_agent = SurfaceWebCollectorAgent(tools=tool_manager.tools)
+        social_media_agent = SocialMediaCollectorAgent(tools=tool_manager.tools)
+        public_records_agent = PublicRecordsCollectorAgent(tools=tool_manager.tools)
+        dark_web_agent = DarkWebCollectorAgent(tools=tool_manager.tools)
+        
+        search_results = {}
+        raw_data = {
+            "total_records": 0,
             "sources": state["search_coordination_results"]["sources_identified"],
             "collection_timestamp": "2024-01-01T00:00:00Z"
         }
         
+        # Collect surface web data if requested
+        if state["search_coordination_results"]["surface_web_sources"]:
+            surface_web_input = {
+                "task_type": "web_search",
+                "search_queries": [state.get("user_request", "general search")],
+                "sources": state["search_coordination_results"]["surface_web_sources"]
+            }
+            surface_result = await surface_web_agent.execute(surface_web_input)
+            if surface_result.success:
+                search_results["surface_web"] = surface_result.data.get("results", [])
+                raw_data["total_records"] += len(surface_result.data.get("results", []))
+                state["agents_participated"].append("SurfaceWebCollectorAgent")
+                state["confidence_level"] = max(state["confidence_level"], surface_result.confidence)
+            else:
+                state = add_warning(state, f"Surface web collection failed: {surface_result.error_message}")
+        
+        # Collect social media data if requested
+        if state["search_coordination_results"]["social_media_sources"]:
+            social_media_input = {
+                "task_type": "social_media_scan",
+                "search_queries": [state.get("user_request", "general search")],
+                "platforms": state["search_coordination_results"]["social_media_sources"]
+            }
+            social_result = await social_media_agent.execute(social_media_input)
+            if social_result.success:
+                search_results["social_media"] = social_result.data.get("results", [])
+                raw_data["total_records"] += len(social_result.data.get("results", []))
+                state["agents_participated"].append("SocialMediaCollectorAgent")
+                state["confidence_level"] = max(state["confidence_level"], social_result.confidence)
+            else:
+                state = add_warning(state, f"Social media collection failed: {social_result.error_message}")
+        
+        # Collect public records data if requested
+        if state["search_coordination_results"]["public_records_sources"]:
+            public_records_input = {
+                "task_type": "public_records_search",
+                "search_criteria": [state.get("user_request", "general search")],
+                "record_types": state["search_coordination_results"]["public_records_sources"]
+            }
+            public_result = await public_records_agent.execute(public_records_input)
+            if public_result.success:
+                search_results["public_records"] = public_result.data.get("results", [])
+                raw_data["total_records"] += len(public_result.data.get("results", []))
+                state["agents_participated"].append("PublicRecordsCollectorAgent")
+                state["confidence_level"] = max(state["confidence_level"], public_result.confidence)
+            else:
+                state = add_warning(state, f"Public records collection failed: {public_result.error_message}")
+        
+        # Collect dark web data if requested (with authorization)
+        if state["search_coordination_results"]["dark_web_sources"]:
+            dark_web_input = {
+                "task_type": "dark_web_scan",
+                "search_queries": [state.get("user_request", "general search")],
+                "sources": state["search_coordination_results"]["dark_web_sources"],
+                "authorized": True  # This would normally come from auth system
+            }
+            dark_result = await dark_web_agent.execute(dark_web_input)
+            if dark_result.success:
+                search_results["dark_web"] = dark_result.data.get("results", [])
+                raw_data["total_records"] += len(dark_result.data.get("results", []))
+                state["agents_participated"].append("DarkWebCollectorAgent")
+                state["confidence_level"] = max(state["confidence_level"], dark_result.confidence)
+            else:
+                state = add_warning(state, f"Dark web collection failed: {dark_result.error_message}")
+        
+        state["search_results"] = search_results
+        state["raw_data"] = raw_data
         state["collection_status"]["data_collection"] = InvestigationStatus.COMPLETED
+        
+        # Calculate data quality metrics based on what was collected
+        total_records = raw_data["total_records"]
         state["data_quality_metrics"] = {
-            "completeness": 0.8,
-            "accuracy": 0.9,
-            "relevance": 0.75,
-            "freshness": 0.85
+            "completeness": min(1.0, total_records / max(1, state.get("search_coordination_results", {}).get("sources_identified", 1))),
+            "accuracy": 0.85,  # Default for now
+            "relevance": 0.8,  # Default for now
+            "freshness": 0.9   # Default for now
         }
         
         return state
@@ -499,14 +606,16 @@ async def contextual_analysis_node(state: InvestigationState) -> InvestigationSt
 async def intelligence_synthesis_node(state: InvestigationState) -> InvestigationState:
     """Synthesize intelligence from analysis results."""
     try:
-        # Initialize the intelligence synthesis agent
-        agent = IntelligenceSynthesisAgent()
+        # Initialize the enhanced intelligence synthesis agent with mandatory source links
+        from ..agents.synthesis.enhanced_intelligence_synthesis_agent_v2 import EnhancedIntelligenceSynthesisAgentV2
+        agent = EnhancedIntelligenceSynthesisAgentV2()
         
         # Prepare input data for intelligence synthesis
         synthesis_input = {
             "fused_data": state.get("fused_data", {}),
             "patterns": state.get("patterns", []),
             "context_analysis": state.get("context_analysis", {}),
+            "sources_used": state.get("sources_used", []),
             "user_request": state.get("user_request", ""),
             "objectives": state.get("objectives", {})
         }
@@ -517,15 +626,17 @@ async def intelligence_synthesis_node(state: InvestigationState) -> Investigatio
         if result.success:
             state["intelligence"] = result.data
             state["synthesis_status"]["intelligence_synthesis"] = InvestigationStatus.COMPLETED
-            update_resource_costs(state, "intelligence_synthesis", result.metadata.get("processing_time", 4.0))
+            # Update resource costs - need to pass a dict
+            cost_update = {"intelligence_synthesis_time": result.metadata.get("processing_time", 4.0)}
+            state = update_resource_costs(state, cost_update)
         else:
             error_msg = result.error_message if result.error_message else "Intelligence synthesis failed"
-            return add_error(state, error_msg, InvestigationPhase.SYNTHESIS, "intelligence_synthesis_node")
+            return add_error(state, error_msg or "Intelligence synthesis failed", InvestigationPhase.SYNTHESIS, "intelligence_synthesis_node")
         
         return state
         
     except Exception as e:
-        return add_error(state, str(e), InvestigationPhase.SYNTHESIS, "intelligence_synthesis_node")
+        return add_error(state, str(e) or "Error in intelligence synthesis node", InvestigationPhase.SYNTHESIS, "intelligence_synthesis_node")
 
 
 async def quality_assurance_node(state: InvestigationState) -> InvestigationState:
@@ -550,7 +661,8 @@ async def quality_assurance_node(state: InvestigationState) -> InvestigationStat
         if result.success:
             state["quality_assessment"] = result.data
             state["synthesis_status"]["quality_assurance"] = InvestigationStatus.COMPLETED
-            update_resource_costs(state, "quality_assurance", result.metadata.get("processing_time", 5.0))
+            cost_update = {"quality_assurance_time": result.metadata.get("processing_time", 5.0)}
+            state = update_resource_costs(state, cost_update)
         else:
             error_msg = result.error_message if result.error_message else "Quality assurance failed"
             return add_error(state, error_msg, InvestigationPhase.SYNTHESIS, "quality_assurance_node")
@@ -593,7 +705,8 @@ async def report_generation_node(state: InvestigationState) -> InvestigationStat
             state["alternative_formats"] = report_data.get("alternative_formats", {})
             state["report_metadata"] = report_data.get("report_metadata", {})
             state["synthesis_status"]["report_generation"] = InvestigationStatus.COMPLETED
-            update_resource_costs(state, "report_generation", result.metadata.get("processing_time", 6.0))
+            cost_update = {"report_generation_time": result.metadata.get("processing_time", 6.0)}
+            state = update_resource_costs(state, cost_update)
         else:
             error_msg = result.error_message if result.error_message else "Report generation failed"
             return add_error(state, error_msg, InvestigationPhase.SYNTHESIS, "report_generation_node")

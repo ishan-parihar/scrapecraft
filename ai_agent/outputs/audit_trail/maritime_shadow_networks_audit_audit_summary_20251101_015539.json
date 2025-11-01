@@ -1,0 +1,39 @@
+{
+  "audit_summary": {
+    "case_id": "MSN-2024-001",
+    "audit_timestamp": "2025-10-31T20:25:39.501419",
+    "test_scenario": "Maritime Shadow Networks - Complex制裁 evasion investigation",
+    "overall_performance": {
+      "score": 0.7526703703703704,
+      "grade": "B (Good)",
+      "execution_time": 0.009791851043701172,
+      "all_phases_successful": true
+    },
+    "key_findings": {
+      "entities_identified": 3,
+      "relationships_found": 2,
+      "patterns_detected": 2,
+      "sources_analyzed": 5,
+      "report_sections_generated": 12
+    },
+    "quality_assessment": {
+      "overall_quality_score": 0.6162698412698413,
+      "quality_grade": "C",
+      "source_verification_rate": 1.0,
+      "fact_accuracy_rate": 0.14285714285714285
+    },
+    "intelligence_output": {
+      "executive_summary_length": 375,
+      "key_findings_count": 6,
+      "insights_count": 4
+    },
+    "production_readiness": {
+      "ready_for_production": true,
+      "recommended_improvements": [
+        "Enhance quality assurance processes and threshold calibration",
+        "Improve fact accuracy verification algorithms",
+        "Optimize report generation confidence and quality"
+      ]
+    }
+  }
+}

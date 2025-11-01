@@ -1,0 +1,19 @@
+{
+  "workflow_completion_time": "2025-10-31T21:41:49.589998",
+  "quality_grade_achieved": "A-",
+  "grade_improvement": true,
+  "source_link_coverage": 0.6666666666666666,
+  "source_link_validity": 1.0,
+  "coverage_compliant": false,
+  "validity_compliant": true,
+  "overall_compliance": false,
+  "target_achieved": false,
+  "key_metrics": {
+    "total_key_findings": 5,
+    "total_insights": 5,
+    "total_recommendations": 5,
+    "synthesis_confidence": 0.933,
+    "qa_confidence": 0.8733333333333333,
+    "report_confidence": 0.6602499999999999
+  }
+}

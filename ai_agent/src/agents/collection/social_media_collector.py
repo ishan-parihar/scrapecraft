@@ -8,22 +8,148 @@ from typing import Dict, List, Any, Optional
 import json
 from datetime import datetime, timedelta
 
-from ..base.osint_agent import OSINTAgent
+from ..base.osint_agent import LLMOSINTAgent, AgentConfig
+from ...utils.tools.langchain_tools import get_global_tool_manager
 
 
-class SocialMediaCollectorAgent(OSINTAgent):
+class SocialMediaCollectorAgent(LLMOSINTAgent):
     """
     Agent responsible for collecting information from social media platforms.
     Handles profiles, posts, connections, and public social media data.
     """
     
-    def __init__(self, agent_id: str = "social_media_collector"):
-        super().__init__(agent_id, "Social Media Collector")
+    def __init__(self, agent_id: str = "social_media_collector", tools: Optional[List[Any]] = None):
+        config = AgentConfig(
+            agent_id=agent_id,
+            role="Social Media Collector",
+            description="Collects information from social media platforms including profiles, posts, and connections"
+        )
+        # Initialize with tools
+        super().__init__(config=config, tools=tools or [])
+        self.tool_manager = get_global_tool_manager()
         self.supported_platforms = [
             "twitter", "facebook", "instagram", "linkedin", 
             "tiktok", "reddit", "youtube", "telegram"
         ]
         self.request_delay = 2.0  # Longer delay for social media platforms
+    
+    async def use_web_scraper(self, website_url: str, user_prompt: str) -> Dict[str, Any]:
+        """
+        Use the web scraper tool to extract data from a social media website.
+        
+        Args:
+            website_url: The URL of the social media website to scrape
+            user_prompt: Natural language prompt describing what data to extract
+            
+        Returns:
+            Dictionary containing the scraped data
+        """
+        self.logger.info(f"Using web scraper on {website_url} with prompt: {user_prompt}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "smart_scraper",
+                website_url=website_url,
+                user_prompt=user_prompt
+            )
+            self.logger.info(f"Web scraper result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using web scraper: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_web_crawler(self, website_url: str, user_prompt: str, max_depth: int = 2, max_pages: int = 5) -> Dict[str, Any]:
+        """
+        Use the web crawler tool to crawl and extract data from social media sites.
+        
+        Args:
+            website_url: The starting URL for crawling
+            user_prompt: Natural language prompt describing what data to extract
+            max_depth: Maximum crawl depth (default: 2)
+            max_pages: Maximum number of pages to crawl (default: 5)
+            
+        Returns:
+            Dictionary containing the crawled data
+        """
+        self.logger.info(f"Using web crawler starting at {website_url}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "smart_crawler",
+                website_url=website_url,
+                user_prompt=user_prompt,
+                max_depth=max_depth,
+                max_pages=max_pages
+            )
+            self.logger.info(f"Web crawler result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using web crawler: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_search_tool(self, search_query: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Use the search tool to find social media profiles and content.
+        
+        Args:
+            search_query: The search query to find social media content
+            max_results: Maximum number of results to return (default: 10)
+            
+        Returns:
+            Dictionary containing search results
+        """
+        self.logger.info(f"Performing social media search for: {search_query}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "search_scraper",
+                search_query=search_query,
+                max_results=max_results
+            )
+            self.logger.info(f"Search result count: {result.get('count', 0)}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using search tool: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_markdown_converter(self, website_url: str) -> Dict[str, Any]:
+        """
+        Convert a social media website to markdown format for easier processing.
+        
+        Args:
+            website_url: The URL of the social media website to convert to markdown
+            
+        Returns:
+            Dictionary containing the markdown content
+        """
+        self.logger.info(f"Converting {website_url} to markdown")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "markdownify",
+                website_url=website_url
+            )
+            self.logger.info(f"Markdown conversion result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error converting to markdown: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
         
     async def collect_profile_info(
         self, 
@@ -44,7 +170,7 @@ class SocialMediaCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing profile information
         """
-        self.log_activity(f"Collecting profile info for {username} on {platform}")
+        self.logger.info(f"Collecting profile info for {username} on {platform}")
         
         try:
             # Simulate profile data collection
@@ -63,11 +189,11 @@ class SocialMediaCollectorAgent(OSINTAgent):
                 "collection_success": True
             }
             
-            self.log_activity(f"Profile collected for {username} on {platform}")
+            self.logger.info(f"Profile collected for {username} on {platform}")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error collecting profile for {username} on {platform}: {str(e)}", level="error")
+            self.logger.error(f"Error collecting profile for {username} on {platform}: {str(e)}")
             return {
                 "error": str(e),
                 "source": f"social_media_{platform}",
@@ -95,7 +221,7 @@ class SocialMediaCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing search results
         """
-        self.log_activity(f"Searching posts for '{keyword}' on {platform}")
+        self.logger.info(f"Searching posts for '{keyword}' on {platform}")
         
         try:
             posts = await self._simulate_keyword_search(keyword, platform, max_results, date_range)
@@ -111,11 +237,11 @@ class SocialMediaCollectorAgent(OSINTAgent):
                 "collection_success": True
             }
             
-            self.log_activity(f"Found {len(posts)} posts for '{keyword}' on {platform}")
+            self.logger.info(f"Found {len(posts)} posts for '{keyword}' on {platform}")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error searching posts for '{keyword}' on {platform}: {str(e)}", level="error")
+            self.logger.error(f"Error searching posts for '{keyword}' on {platform}: {str(e)}")
             return {
                 "error": str(e),
                 "source": f"social_media_search_{platform}",
@@ -141,7 +267,7 @@ class SocialMediaCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing network analysis data
         """
-        self.log_activity(f"Collecting network analysis for {username} on {platform}")
+        self.logger.info(f"Collecting network analysis for {username} on {platform}")
         
         try:
             network_data = await self._simulate_network_analysis(username, platform, depth)
@@ -156,11 +282,11 @@ class SocialMediaCollectorAgent(OSINTAgent):
                 "collection_success": True
             }
             
-            self.log_activity(f"Network analysis completed for {username} on {platform}")
+            self.logger.info(f"Network analysis completed for {username} on {platform}")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error in network analysis for {username} on {platform}: {str(e)}", level="error")
+            self.logger.error(f"Error in network analysis for {username} on {platform}: {str(e)}")
             return {
                 "error": str(e),
                 "source": f"social_media_network_{platform}",
@@ -186,7 +312,7 @@ class SocialMediaCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing hashtag analysis
         """
-        self.log_activity(f"Monitoring hashtag #{hashtag} on {platform}")
+        self.logger.info(f"Monitoring hashtag #{hashtag} on {platform}")
         
         try:
             hashtag_data = await self._simulate_hashtag_monitoring(hashtag, platform, timeframe)
@@ -201,11 +327,11 @@ class SocialMediaCollectorAgent(OSINTAgent):
                 "collection_success": True
             }
             
-            self.log_activity(f"Hashtag analysis completed for #{hashtag} on {platform}")
+            self.logger.info(f"Hashtag analysis completed for #{hashtag} on {platform}")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error monitoring hashtag #{hashtag} on {platform}: {str(e)}", level="error")
+            self.logger.error(f"Error monitoring hashtag #{hashtag} on {platform}: {str(e)}")
             return {
                 "error": str(e),
                 "source": f"social_media_hashtag_{platform}",
@@ -225,6 +351,12 @@ class SocialMediaCollectorAgent(OSINTAgent):
             Dictionary containing collection results
         """
         task_type = task.get("task_type", "profile")
+        
+        # Handle LangChain tool-based tasks
+        if task_type == "langchain_tool":
+            return await self._execute_langchain_tool_task(task)
+        
+        # Handle traditional simulation tasks
         results = []
         
         if task_type == "profile":
@@ -286,13 +418,104 @@ class SocialMediaCollectorAgent(OSINTAgent):
                     await asyncio.sleep(self.request_delay)
         
         return {
-            "agent_id": self.agent_id,
+            "agent_id": self.config.agent_id,
             "task_type": task_type,
             "timestamp": time.time(),
             "results": results,
             "total_collections": len(results),
             "status": "completed"
         }
+    
+    async def _execute_langchain_tool_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a LangChain tool-based task.
+
+        Args:
+            task: Task dictionary containing tool execution parameters
+
+        Returns:
+            Dictionary containing tool execution results
+        """
+        tool_name = task.get("tool_name")
+        tool_args = task.get("tool_args", {})
+        
+        if not tool_name:
+            return {
+                "success": False,
+                "error": "Tool name not specified in task",
+                "agent_id": self.config.agent_id,
+                "timestamp": time.time(),
+                "status": "failed"
+            }
+        
+        self.logger.info(f"Executing LangChain tool: {tool_name} with args: {tool_args}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(tool_name, **tool_args)
+            return {
+                "success": result.get("success", False),
+                "tool_name": tool_name,
+                "tool_args": tool_args,
+                "result": result,
+                "agent_id": self.config.agent_id,
+                "timestamp": time.time(),
+                "status": "completed"
+            }
+        except Exception as e:
+            self.logger.error(f"Error executing LangChain tool {tool_name}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "tool_name": tool_name,
+                "tool_args": tool_args,
+                "agent_id": self.config.agent_id,
+                "timestamp": time.time(),
+                "status": "failed"
+            }
+
+    def _get_system_prompt(self) -> str:
+        """
+        Get the system prompt for the Social Media Collector Agent.
+        """
+        return """
+        You are a Social Media Collector Agent, specialized in gathering information from social media platforms 
+        including profiles, posts, connections, and public social media data. Your role is to collect relevant 
+        information based on the user's request while maintaining ethical standards and respecting platform terms 
+        of service.
+        
+        You should:
+        1. Collect profile information from various social media platforms
+        2. Extract meaningful content from posts and comments
+        3. Identify and analyze network connections
+        4. Monitor hashtags and trending topics
+        5. Structure the collected information in a clear, organized format
+        """
+
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
+        """
+        Process and structure the raw output from the agent.
+        """
+        # For the collection agent, we return the raw collected data
+        return {
+            "collection_results": raw_output,
+            "processed_at": time.time(),
+            "agent_type": "SocialMediaCollector"
+        }
+
+    def validate_input(self, input_data: Dict[str, Any]) -> bool:
+        """
+        Validate input data before execution.
+        """
+        # Check if the input contains necessary information
+        if not input_data:
+            return False
+        
+        # For collection tasks, ensure we have a task type
+        task_type = input_data.get("task_type")
+        if not task_type or task_type not in ["profile", "search", "network", "hashtag"]:
+            return False
+        
+        return True
     
     async def _simulate_profile_lookup(self, username: str, platform: str) -> Dict[str, Any]:
         """Simulate profile lookup for demonstration."""
@@ -497,3 +720,58 @@ class SocialMediaCollectorAgent(OSINTAgent):
         """Generate timestamp for hours ago."""
         timestamp = datetime.now() - timedelta(hours=hours_ago)
         return timestamp.isoformat() + "Z"
+    
+    async def _use_scraping_tools_for_social_media(self, url: str, user_prompt: str) -> Dict[str, Any]:
+        """
+        Use scraping tools to extract social media content when direct API access is not available.
+        
+        Args:
+            url: Social media URL to scrape
+            user_prompt: Natural language description of what to extract
+            
+        Returns:
+            Dictionary containing scraping tool results
+        """
+        try:
+            # Run the smart scraper tool for social media content
+            result = await self.tool_manager.execute_tool(
+                "smart_scraper",
+                website_url=url,
+                user_prompt=user_prompt
+            )
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using scraping tools for social media {url}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "url": url,
+                "tool_used": "smart_scraper"
+            }
+    
+    async def _use_search_for_social_media_profile(self, search_query: str) -> Dict[str, Any]:
+        """
+        Use search tools to find social media profiles.
+        
+        Args:
+            search_query: Search query to find social media profiles
+            
+        Returns:
+            Dictionary containing search results
+        """
+        try:
+            # Run the search scraper tool
+            result = await self.tool_manager.execute_tool(
+                "search_scraper",
+                search_query=search_query,
+                max_results=10
+            )
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using search tools for social media profiles '{search_query}': {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "query": search_query,
+                "tool_used": "search_scraper"
+            }

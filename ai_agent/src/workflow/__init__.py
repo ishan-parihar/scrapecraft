@@ -5,9 +5,9 @@ This module contains the workflow orchestration system for OSINT investigations
 using LangGraph for state management and agent coordination.
 """
 
-from .graph import OSINTWorkflow, create_osint_workflow
-from .state import InvestigationState
-from .nodes import (
+from .graph import (
+    OSINTWorkflow, 
+    create_osint_workflow,
     objective_definition_node,
     strategy_formulation_node,
     search_coordination_node,
@@ -19,6 +19,7 @@ from .nodes import (
     quality_assurance_node,
     report_generation_node
 )
+from .state import InvestigationState
 
 __all__ = [
     "OSINTWorkflow",

@@ -8,10 +8,11 @@ from typing import Dict, List, Any, Optional
 import hashlib
 from datetime import datetime, timedelta
 
-from ..base.osint_agent import OSINTAgent
+from ..base.osint_agent import LLMOSINTAgent, AgentConfig
+from ...utils.tools.langchain_tools import get_global_tool_manager, ToolManager
 
 
-class DarkWebCollectorAgent(OSINTAgent):
+class DarkWebCollectorAgent(LLMOSINTAgent):
     """
     Agent responsible for collecting information from the dark web.
     Handles onion sites, hidden services, dark web forums, and marketplaces.
@@ -20,14 +21,142 @@ class DarkWebCollectorAgent(OSINTAgent):
     Unauthorized access to dark web content may be illegal.
     """
     
-    def __init__(self, agent_id: str = "dark_web_collector"):
-        super().__init__(agent_id, "Dark Web Collector")
+    def __init__(self, agent_id: str = "dark_web_collector", tools: Optional[List] = None):
+        config = AgentConfig(
+            agent_id=agent_id,
+            role="Dark Web Collector",
+            description="Collects information from dark web sources including onion services, forums, marketplaces, and leak sites"
+        )
+        super().__init__(config=config, tools=tools)
+        self.tool_manager = ToolManager() if not tools else get_global_tool_manager()
         self.supported_platforms = [
             "tor_network", "i2p_network", "freenet", "zero_net",
             "dark_web_forums", "marketplaces", "leak_sites", "whistleblower_sites"
         ]
         self.request_delay = 5.0  # Longer delay for dark web operations
         self.safety_level = "high"  # Always operate with high safety settings
+    
+    async def use_web_scraper(self, website_url: str, user_prompt: str) -> Dict[str, Any]:
+        """
+        Use the web scraper tool to extract data from a website.
+        Note: For dark web operations, ensure proper authorization and safety measures.
+        
+        Args:
+            website_url: The URL of the website to scrape
+            user_prompt: Natural language prompt describing what data to extract
+            
+        Returns:
+            Dictionary containing the scraped data
+        """
+        self.logger.info(f"Using web scraper on {website_url} with prompt: {user_prompt}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "smart_scraper",
+                website_url=website_url,
+                user_prompt=user_prompt
+            )
+            self.logger.info(f"Web scraper result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using web scraper: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_web_crawler(self, website_url: str, user_prompt: str, max_depth: int = 2, max_pages: int = 5) -> Dict[str, Any]:
+        """
+        Use the web crawler tool to crawl and extract data from a website.
+        Note: For dark web operations, ensure proper authorization and safety measures.
+        
+        Args:
+            website_url: The starting URL for crawling
+            user_prompt: Natural language prompt describing what data to extract
+            max_depth: Maximum crawl depth (default: 2)
+            max_pages: Maximum number of pages to crawl (default: 5)
+            
+        Returns:
+            Dictionary containing the crawled data
+        """
+        self.logger.info(f"Using web crawler starting at {website_url}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "smart_crawler",
+                website_url=website_url,
+                user_prompt=user_prompt,
+                max_depth=max_depth,
+                max_pages=max_pages
+            )
+            self.logger.info(f"Web crawler result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using web crawler: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_search_tool(self, search_query: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Use the search tool to find relevant websites for dark web research.
+        Note: For dark web operations, ensure proper authorization and safety measures.
+        
+        Args:
+            search_query: The search query to find relevant websites
+            max_results: Maximum number of results to return (default: 10)
+            
+        Returns:
+            Dictionary containing search results
+        """
+        self.logger.info(f"Performing dark web search for: {search_query}")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "search_scraper",
+                search_query=search_query,
+                max_results=max_results
+            )
+            self.logger.info(f"Search result count: {result.get('count', 0)}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error using search tool: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
+    
+    async def use_markdown_converter(self, website_url: str) -> Dict[str, Any]:
+        """
+        Convert a website to markdown format for easier processing.
+        Note: For dark web operations, ensure proper authorization and safety measures.
+        
+        Args:
+            website_url: The URL of the website to convert to markdown
+            
+        Returns:
+            Dictionary containing the markdown content
+        """
+        self.logger.info(f"Converting {website_url} to markdown")
+        
+        try:
+            result = await self.tool_manager.execute_tool(
+                "markdownify",
+                website_url=website_url
+            )
+            self.logger.info(f"Markdown conversion result: {result.get('success', 'Unknown')}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error converting to markdown: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": None
+            }
         
     async def scan_onion_services(
         self, 
@@ -46,7 +175,7 @@ class DarkWebCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing scan results
         """
-        self.log_activity(f"Scanning {len(targets)} onion services (type: {scan_type})")
+        self.logger.info(f"Scanning {len(targets)} onion services (type: {scan_type})")
         
         try:
             results = []
@@ -67,11 +196,11 @@ class DarkWebCollectorAgent(OSINTAgent):
                 "safety_level": self.safety_level
             }
             
-            self.log_activity(f"Onion service scan completed, {collection_data['total_findings']} findings")
+            self.logger.info(f"Onion service scan completed, {collection_data['total_findings']} findings")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error in onion service scan: {str(e)}", level="error")
+            self.logger.error(f"Error in onion service scan: {str(e)}")
             return {
                 "error": str(e),
                 "source": "dark_web_onion_services",
@@ -95,7 +224,7 @@ class DarkWebCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing monitoring results
         """
-        self.log_activity(f"Monitoring {len(forums)} forums for {len(keywords)} keywords")
+        self.logger.info(f"Monitoring {len(forums)} forums for {len(keywords)} keywords")
         
         try:
             results = []
@@ -117,11 +246,11 @@ class DarkWebCollectorAgent(OSINTAgent):
                 "safety_level": self.safety_level
             }
             
-            self.log_activity(f"Forum monitoring completed, {collection_data['total_mentions']} mentions found")
+            self.logger.info(f"Forum monitoring completed, {collection_data['total_mentions']} mentions found")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error in forum monitoring: {str(e)}", level="error")
+            self.logger.error(f"Error in forum monitoring: {str(e)}")
             return {
                 "error": str(e),
                 "source": "dark_web_forums",
@@ -131,7 +260,7 @@ class DarkWebCollectorAgent(OSINTAgent):
     async def scan_data_leaks(
         self, 
         search_terms: List[str],
-        leak_types: List[str] = None
+        leak_types: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Scan for data leaks and breached information.
@@ -146,7 +275,7 @@ class DarkWebCollectorAgent(OSINTAgent):
         if leak_types is None:
             leak_types = ["credentials", "personal_data", "financial", "corporate"]
             
-        self.log_activity(f"Scanning for data leaks related to {len(search_terms)} terms")
+        self.logger.info(f"Scanning for data leaks related to {len(search_terms)} terms")
         
         try:
             results = []
@@ -167,11 +296,11 @@ class DarkWebCollectorAgent(OSINTAgent):
                 "safety_level": self.safety_level
             }
             
-            self.log_activity(f"Leak scan completed, {collection_data['total_leaks_found']} leaks found")
+            self.logger.info(f"Leak scan completed, {collection_data['total_leaks_found']} leaks found")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error in leak scan: {str(e)}", level="error")
+            self.logger.error(f"Error in leak scan: {str(e)}")
             return {
                 "error": str(e),
                 "source": "dark_web_leaks",
@@ -181,7 +310,7 @@ class DarkWebCollectorAgent(OSINTAgent):
     async def monitor_marketplace_activities(
         self, 
         marketplace: str,
-        categories: List[str] = None
+        categories: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Monitor dark web marketplace activities.
@@ -196,7 +325,7 @@ class DarkWebCollectorAgent(OSINTAgent):
         if categories is None:
             categories = ["data", "services", "software", "fraud"]
             
-        self.log_activity(f"Monitoring marketplace: {marketplace}")
+        self.logger.info(f"Monitoring marketplace: {marketplace}")
         
         try:
             activities = await self._simulate_marketplace_monitoring(marketplace, categories)
@@ -213,11 +342,11 @@ class DarkWebCollectorAgent(OSINTAgent):
                 "safety_level": self.safety_level
             }
             
-            self.log_activity(f"Marketplace monitoring completed, {collection_data['total_listings']} listings found")
+            self.logger.info(f"Marketplace monitoring completed, {collection_data['total_listings']} listings found")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error in marketplace monitoring: {str(e)}", level="error")
+            self.logger.error(f"Error in marketplace monitoring: {str(e)}")
             return {
                 "error": str(e),
                 "source": "dark_web_marketplaces",
@@ -226,7 +355,7 @@ class DarkWebCollectorAgent(OSINTAgent):
     
     async def analyze_cybercrime_trends(
         self, 
-        trend_types: List[str] = None,
+        trend_types: Optional[List[str]] = None,
         timeframe: str = "30d"
     ) -> Dict[str, Any]:
         """
@@ -242,7 +371,7 @@ class DarkWebCollectorAgent(OSINTAgent):
         if trend_types is None:
             trend_types = ["malware", "ransomware", "phishing", "data_breaches", "fraud"]
             
-        self.log_activity(f"Analyzing cybercrime trends for {len(trend_types)} categories")
+        self.logger.info(f"Analyzing cybercrime trends for {len(trend_types)} categories")
         
         try:
             trends = await self._simulate_trend_analysis(trend_types, timeframe)
@@ -258,11 +387,11 @@ class DarkWebCollectorAgent(OSINTAgent):
                 "safety_level": self.safety_level
             }
             
-            self.log_activity(f"Trend analysis completed for {len(trends)} categories")
+            self.logger.info(f"Trend analysis completed for {len(trends)} categories")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error in trend analysis: {str(e)}", level="error")
+            self.logger.error(f"Error in trend analysis: {str(e)}")
             return {
                 "error": str(e),
                 "source": "dark_web_trends",
@@ -279,13 +408,17 @@ class DarkWebCollectorAgent(OSINTAgent):
         Returns:
             Dictionary containing collection results
         """
+        # Check if this is a LangChain tool-based task
+        if task.get("use_langchain", False):
+            return await self._execute_langchain_task(task)
+        
         task_type = task.get("task_type", "onion_scan")
         results = []
         
         # Safety check - ensure authorization for dark web activities
         if not task.get("authorized", False):
             return {
-                "agent_id": self.agent_id,
+                "agent_id": self.config.agent_id,
                 "error": "Dark web activities require explicit authorization",
                 "status": "denied",
                 "safety_level": self.safety_level
@@ -338,7 +471,7 @@ class DarkWebCollectorAgent(OSINTAgent):
             results.append(result)
         
         return {
-            "agent_id": self.agent_id,
+            "agent_id": self.config.agent_id,
             "task_type": task_type,
             "timestamp": time.time(),
             "results": results,
@@ -347,6 +480,62 @@ class DarkWebCollectorAgent(OSINTAgent):
             "safety_level": self.safety_level,
             "authorization": task.get("authorized", False)
         }
+
+    async def _execute_langchain_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a task using LangChain tools.
+        
+        Args:
+            task: Task dictionary containing tool parameters
+            
+        Returns:
+            Dictionary containing tool execution results
+        """
+        try:
+            tool_name = task.get("tool_name")
+            tool_params = task.get("tool_params", {})
+            
+            if tool_name == "web_scraper":
+                result = await self.use_web_scraper(
+                    website_url=tool_params.get("website_url"),
+                    user_prompt=tool_params.get("user_prompt", "")
+                )
+            elif tool_name == "web_crawler":
+                result = await self.use_web_crawler(
+                    website_url=tool_params.get("website_url"),
+                    user_prompt=tool_params.get("user_prompt", ""),
+                    max_depth=tool_params.get("max_depth", 2),
+                    max_pages=tool_params.get("max_pages", 5)
+                )
+            elif tool_name == "search_tool":
+                result = await self.use_search_tool(
+                    search_query=tool_params.get("search_query"),
+                    max_results=tool_params.get("max_results", 10)
+                )
+            elif tool_name == "markdown_converter":
+                result = await self.use_markdown_converter(
+                    website_url=tool_params.get("website_url")
+                )
+            else:
+                return {
+                    "agent_id": self.config.agent_id,
+                    "error": f"Unknown tool: {tool_name}",
+                    "status": "error"
+                }
+            
+            return {
+                "agent_id": self.config.agent_id,
+                "tool_name": tool_name,
+                "result": result,
+                "status": "completed"
+            }
+        except Exception as e:
+            self.logger.error(f"Error executing LangChain task: {str(e)}")
+            return {
+                "agent_id": self.config.agent_id,
+                "error": str(e),
+                "status": "error"
+            }
     
     async def _simulate_onion_service_scan(
         self, 
@@ -516,3 +705,32 @@ class DarkWebCollectorAgent(OSINTAgent):
         """Generate timestamp for hours ago."""
         timestamp = datetime.now() - timedelta(hours=hours_ago)
         return timestamp.isoformat() + "Z"
+    
+    def _get_system_prompt(self) -> str:
+        """Get the system prompt for the LLM."""
+        return """
+        You are an expert Dark Web Collector AI assistant. Your role is to collect information 
+        from dark web sources including onion services, forums, marketplaces, and leak sites.
+        
+        When given a request, you should:
+        1. Identify the specific type of dark web source to query
+        2. Determine the appropriate search parameters
+        3. Execute the search using the available tools
+        4. Return structured results in the appropriate format
+        5. Always prioritize safety and legal compliance
+        
+        Available platforms: tor_network, i2p_network, freenet, zero_net, 
+        dark_web_forums, marketplaces, leak_sites, whistleblower_sites
+        """
+    
+    def validate_input(self, input_data: Dict[str, Any]) -> bool:
+        """Validate the input data before processing."""
+        required_fields = ["task_type"]
+        return all(field in input_data for field in required_fields)
+    
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
+        """Process the LLM response and extract structured output."""
+        # For now, return the raw response - in a real implementation,
+        # this would parse the LLM response into structured data
+        return {"raw_response": raw_output}
+    
