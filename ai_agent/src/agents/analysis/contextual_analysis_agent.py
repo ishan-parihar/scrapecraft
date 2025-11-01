@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 import json
 import logging
 
-from ..base.osint_agent import OSINTAgent, AgentConfig
+from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
-class ContextualAnalysisAgent(OSINTAgent):
+class ContextualAnalysisAgent(LLMOSINTAgent):
     """
     Agent responsible for providing contextual analysis of OSINT data.
     Handles threat assessment, risk evaluation, situational awareness, and contextual interpretation.

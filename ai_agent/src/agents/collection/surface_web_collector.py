@@ -10,7 +10,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from ..base.osint_agent import LLMOSINTAgent, AgentConfig
-from ...utils.tools.langchain_tools import get_global_tool_manager
+from ...utils.tools.scrapegraph_integration import get_global_tool_manager
 
 
 class SurfaceWebCollectorAgent(LLMOSINTAgent):
@@ -62,16 +62,83 @@ class SurfaceWebCollectorAgent(LLMOSINTAgent):
         5. Structure the collected information in a clear, organized format
         """
     
+    async def _execute_agent(self, input_data: Dict[str, Any]) -> str:
+        """
+        Execute the agent with actual collection task.
+        """
+        try:
+            # Call the specialized execute_task method which handles the actual collection
+            import json
+            result = await self.execute_task(input_data)
+            return json.dumps(result)
+        except Exception as e:
+            # If there's an error, return a structured error response
+            error_result = {
+                "error": str(e),
+                "agent_type": "SurfaceWebCollector",
+                "status": "failed"
+            }
+            import json
+            return json.dumps(error_result)
+
     def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
         """
         Process and structure the raw output from the agent.
         """
-        # For the collection agent, we return the raw collected data
-        return {
-            "collection_results": raw_output,
-            "processed_at": time.time(),
-            "agent_type": "SurfaceWebCollector"
-        }
+        import json
+        try:
+            # Parse the raw JSON output from _execute_agent
+            parsed_output = json.loads(raw_output)
+            
+            # If the output already has the expected structure (like from execute_task), return it
+            if isinstance(parsed_output, dict):
+                return parsed_output
+            else:
+                # For other cases, wrap in standard format
+                return {
+                    "collection_results": parsed_output,
+                    "processed_at": time.time(),
+                    "agent_type": "SurfaceWebCollector"
+                }
+        except json.JSONDecodeError:
+            # If JSON parsing fails, return standard format with raw output
+            return {
+                "collection_results": raw_output,
+                "processed_at": time.time(),
+                "agent_type": "SurfaceWebCollector"
+            }
+
+    def _extract_sources(self, result: Dict[str, Any]) -> List[str]:
+        """
+        Extract source information from the result.
+        Override to properly extract URLs from search results.
+        """
+        sources = []
+        
+        # Look for results in the result structure
+        if "results" in result:
+            results = result["results"]
+            if isinstance(results, list):
+                for result_item in results:
+                    if isinstance(result_item, dict):
+                        # Extract URLs from result items
+                        if "url" in result_item and result_item["url"]:
+                            sources.append(result_item["url"])
+                        elif "urls" in result_item and isinstance(result_item["urls"], list):
+                            sources.extend(result_item["urls"])
+                        
+                        # Check for nested 'results' in search results
+                        if "results" in result_item:
+                            nested_results = result_item["results"]
+                            if isinstance(nested_results, list):
+                                for nested_result in nested_results:
+                                    if isinstance(nested_result, dict):
+                                        if "url" in nested_result and nested_result["url"]:
+                                            sources.append(nested_result["url"])
+        
+        # Remove duplicates and filter valid URLs
+        unique_sources = list(set([s for s in sources if s and s.startswith(('http://', 'https://'))]))
+        return unique_sources
     
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """

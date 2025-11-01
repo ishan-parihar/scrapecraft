@@ -15,10 +15,10 @@ import logging
 # from langchain.llms import OpenAI
 # from langchain.prompts import PromptTemplate
 
-from ..base.osint_agent import OSINTAgent, AgentConfig, AgentResult
+from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
-class ObjectiveDefinitionAgent(OSINTAgent):
+class ObjectiveDefinitionAgent(LLMOSINTAgent):
     """
     Agent responsible for defining and clarifying investigation objectives.
     
@@ -106,33 +106,60 @@ class ObjectiveDefinitionAgent(OSINTAgent):
         }
         """
     
-    def _process_output(self, raw_output: str, intermediate_steps: List = None) -> Dict[str, Any]:
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
         """
         Process the raw output from the agent into structured data.
         """
         try:
+            # Check if this is a fallback response from _execute_local_fallback
+            if "[This response was generated using local analysis" in raw_output:
+                # This is a fallback response, generate proper structured objectives
+                return self._generate_fallback_objectives()
+            
+            # Clean the raw output - remove markdown formatting, extra whitespace, etc.
+            cleaned_output = self._clean_raw_output(raw_output)
+            
             # Try to parse JSON output
-            if raw_output.strip().startswith('{'):
-                structured_data = json.loads(raw_output)
+            if cleaned_output.strip().startswith('{'):
+                structured_data = json.loads(cleaned_output)
             else:
                 # Extract JSON from text if embedded
-                json_match = re.search(r'\{.*\}', raw_output, re.DOTALL)
+                json_match = re.search(r'\{.*\}', cleaned_output, re.DOTALL)
                 if json_match:
                     structured_data = json.loads(json_match.group())
                 else:
                     # Fallback: parse text manually
-                    structured_data = self._parse_text_output(raw_output)
+                    structured_data = self._parse_text_output(cleaned_output)
             
             # Validate and enhance the structured data
             return self._validate_and_enhance_objectives(structured_data)
             
         except Exception as e:
             self.logger.error(f"Error processing output: {e}")
-            return {
-                "error": "Failed to process output",
-                "raw_output": raw_output,
-                "fallback_objectives": self._generate_fallback_objectives()
-            }
+            return self._generate_fallback_objectives()
+    
+    def _clean_raw_output(self, raw_output: str) -> str:
+        """Clean raw output to extract valid JSON."""
+        cleaned = raw_output.strip()
+        
+        # Remove markdown code block formatting
+        if cleaned.startswith('```json'):
+            cleaned = cleaned[7:]  # Remove ```json
+        elif cleaned.startswith('```'):
+            cleaned = cleaned[3:]   # Remove ```
+        
+        if cleaned.endswith('```'):
+            cleaned = cleaned[:-3]  # Remove trailing ```
+        
+        # Remove any leading/trailing text that might be around the JSON
+        # Find the first { and last }
+        first_brace = cleaned.find('{')
+        last_brace = cleaned.rfind('}')
+        
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            cleaned = cleaned[first_brace:last_brace+1]
+        
+        return cleaned
     
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """Validate input data for objective definition"""

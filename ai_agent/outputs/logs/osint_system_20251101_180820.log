@@ -1,0 +1,17 @@
+2025-11-01 18:08:20,157 - utils.output_manager.OutputManager - INFO - Output Manager initialized
+2025-11-01 18:08:20,157 - utils.output_manager.OutputManager - INFO - Starting comprehensive OSINT system audit - Case: maritime_shadow_networks_audit
+2025-11-01 18:08:20,158 - utils.output_manager.OutputManager - INFO - Executing Intelligence Synthesis phase
+2025-11-01 18:08:20,158 - agents.synthesis.synthesis_agent_base.IntelligenceSynthesisAgent - INFO - Initialized IntelligenceSynthesisAgent agent
+2025-11-01 18:08:20,158 - agents.synthesis.intelligence_synthesis_agent.IntelligenceSynthesisAgent - INFO - Starting intelligence synthesis
+2025-11-01 18:08:20,158 - agents.synthesis.intelligence_synthesis_agent.IntelligenceSynthesisAgent - INFO - Intelligence synthesis completed with confidence: 0.9251666666666667
+2025-11-01 18:08:20,158 - utils.output_manager.OutputManager - INFO - Agent IntelligenceSynthesisAgent executed successfully in 0.00s
+2025-11-01 18:08:20,158 - utils.output_manager.OutputManager - INFO - Executing Quality Assurance phase
+2025-11-01 18:08:20,158 - agents.synthesis.synthesis_agent_base.QualityAssuranceAgent - INFO - Initialized QualityAssuranceAgent agent
+2025-11-01 18:08:20,158 - agents.synthesis.quality_assurance_agent.QualityAssuranceAgent - INFO - Starting quality assurance process
+2025-11-01 18:08:20,159 - agents.synthesis.quality_assurance_agent.QualityAssuranceAgent - INFO - Quality assurance completed with overall score: 0.49
+2025-11-01 18:08:20,159 - utils.output_manager.OutputManager - INFO - Agent QualityAssuranceAgent executed successfully in 0.00s
+2025-11-01 18:08:20,159 - utils.output_manager.OutputManager - INFO - Executing Report Generation phase
+2025-11-01 18:08:20,159 - agents.synthesis.synthesis_agent_base.ReportGenerationAgent - INFO - Initialized ReportGenerationAgent agent
+2025-11-01 18:08:20,159 - agents.synthesis.report_generation_agent.ReportGenerationAgent - INFO - Starting report generation
+2025-11-01 18:08:20,160 - utils.output_manager.OutputManager - ERROR - Agent ReportGenerationAgent failed: Invalid input data: Quality assessment score (0.48988095238095236) below minimum threshold
+2025-11-01 18:08:20,160 - utils.output_manager.OutputManager - ERROR - Audit failed: Report generation failed: Invalid input data: Quality assessment score (0.48988095238095236) below minimum threshold

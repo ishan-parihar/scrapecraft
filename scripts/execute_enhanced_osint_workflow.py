@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath('.'))
 
 def load_test_dataset():
     """Load the enhanced test dataset with source links."""
-    with open('enhanced_maritime_test_dataset.json', 'r') as f:
+    with open('data/enhanced_maritime_test_dataset.json', 'r') as f:
         return json.load(f)
 
 async def execute_enhanced_osint_workflow():

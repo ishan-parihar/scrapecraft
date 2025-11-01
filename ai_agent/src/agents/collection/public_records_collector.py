@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Optional, Union
 from datetime import datetime, timedelta
 
 from ..base.osint_agent import LLMOSINTAgent, AgentConfig
-from ...utils.tools.langchain_tools import get_global_tool_manager, ToolManager
+from ...utils.tools.scrapegraph_integration import get_global_tool_manager, ToolManager
 
 
 class PublicRecordsCollectorAgent(LLMOSINTAgent):

@@ -1,0 +1,14 @@
+{
+  "project_name": "Adaptive Research Project",
+  "description": "AI-Driven adaptive research project created due to API unavailability",
+  "created_at": "2025-11-01T17:48:59.318500",
+  "research_objectives": [
+    "Primary research objective"
+  ],
+  "success_criteria": [
+    "Default success criterion"
+  ],
+  "required_agents": [
+    "default_agent"
+  ]
+}

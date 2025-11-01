@@ -8,12 +8,13 @@ import logging
 from typing import Dict, List, Any, Optional, Set
 from datetime import datetime
 import json
+import re
 import hashlib
 
-from ..base.osint_agent import OSINTAgent, AgentConfig
+from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
-class DataFusionAgent(OSINTAgent):
+class DataFusionAgent(LLMOSINTAgent):
     """
     Agent responsible for fusing and integrating data from multiple sources.
     Handles data deduplication, normalization, correlation, and enrichment.
@@ -51,16 +52,149 @@ class DataFusionAgent(OSINTAgent):
         """
     
     def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
-        """Process and structure the raw output from the agent."""
+        """
+        Process the raw output from the agent into structured data.
+        """
         try:
-            # Try to parse as JSON first
-            if raw_output.strip().startswith('{') or raw_output.strip().startswith('['):
-                return json.loads(raw_output)
+            # Clean the raw output - remove markdown formatting, extra whitespace, etc.
+            cleaned_output = self._clean_raw_output(raw_output)
+            
+            # Try to parse JSON output
+            if cleaned_output.strip().startswith('{'):
+                structured_data = json.loads(cleaned_output)
             else:
-                # If not JSON, return as a simple response
-                return {"response": raw_output, "processed_at": datetime.utcnow().isoformat()}
-        except json.JSONDecodeError:
-            return {"response": raw_output, "processed_at": datetime.utcnow().isoformat()}
+                # Extract JSON from text if embedded
+                json_match = re.search(r'\{.*\}', cleaned_output, re.DOTALL)
+                if json_match:
+                    structured_data = json.loads(json_match.group())
+                else:
+                    # Fallback: parse text manually
+                    structured_data = self._parse_text_output(cleaned_output)
+            
+            # Validate and enhance the structured data
+            return self._validate_and_enhance_data(structured_data)
+            
+        except Exception as e:
+            self.logger.error(f"Error processing output: {e}")
+            try:
+                cleaned_output = self._clean_raw_output(raw_output)
+            except:
+                cleaned_output = raw_output  # fallback if cleaning fails
+            return {
+                "error": "Failed to process output",
+                "raw_output": raw_output,
+                "cleaned_output": cleaned_output,
+                "fallback_data": self._generate_fallback_data()
+            }
+
+    def _clean_raw_output(self, raw_output: str) -> str:
+        """Clean raw output to extract valid JSON."""
+        cleaned = raw_output.strip()
+        
+        # Remove markdown code block formatting
+        if cleaned.startswith('```json'):
+            cleaned = cleaned[7:]  # Remove ```json
+        elif cleaned.startswith('```'):
+            cleaned = cleaned[3:]   # Remove ```
+        
+        if cleaned.endswith('```'):
+            cleaned = cleaned[:-3]  # Remove trailing ```
+        
+        # Remove any leading/trailing text that might be around the JSON
+        # Find the first { and last }
+        first_brace = cleaned.find('{')
+        last_brace = cleaned.rfind('}')
+        
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            cleaned = cleaned[first_brace:last_brace+1]
+        
+        return cleaned
+
+    def _validate_and_enhance_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and enhance the data fusion results."""
+        enhanced = data.copy()
+        
+        # Add metadata
+        enhanced["metadata"] = {
+            "agent_id": self.config.agent_id,
+            "processing_timestamp": datetime.utcnow().isoformat(),
+            "confidence_score": self._calculate_fusion_confidence(enhanced),
+            "data_quality": self._assess_data_quality(enhanced)
+        }
+        
+        return enhanced
+
+    def _parse_text_output(self, text: str) -> Dict[str, Any]:
+        """Parse non-JSON text output into structured data."""
+        # This is a fallback parser for when JSON parsing fails
+        data = {
+            "fused_entities": [],
+            "fusion_statistics": {},
+            "processing_success": True,
+            "source": "data_fusion",
+            "timestamp": datetime.utcnow().timestamp()
+        }
+        
+        # Simple text parsing logic
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Add basic parsing logic here
+            if "fusion" in line.lower() or "entities" in line.lower():
+                data["fused_entities"].append({"description": line, "confidence": 0.5})
+        
+        return data
+
+    def _generate_fallback_data(self) -> Dict[str, Any]:
+        """Generate basic data when parsing fails."""
+        return {
+            "fused_entities": [],
+            "fusion_statistics": {},
+            "processing_success": True,
+            "source": "data_fusion",
+            "timestamp": datetime.utcnow().timestamp(),
+            "error": "Generated fallback data due to processing error"
+        }
+
+    def _calculate_fusion_confidence(self, data: Dict[str, Any]) -> float:
+        """Calculate confidence score for the data fusion results."""
+        score = 0.0
+        total_checks = 0
+        
+        # Check for fused entities
+        if data.get("fused_entities"):
+            score += min(len(data["fused_entities"]) / 10, 1.0)  # Up to 1.0 for 10+ entities
+        total_checks += 1
+        
+        # Check for statistics
+        if data.get("fusion_statistics"):
+            score += 0.5  # Half point for having statistics
+        total_checks += 1
+        
+        # Check for processing success
+        if data.get("processing_success"):
+            score += 0.5  # Half point for successful processing
+        total_checks += 1
+        
+        return score / total_checks if total_checks > 0 else 0.0
+
+    def _assess_data_quality(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Assess data quality metrics."""
+        quality_metrics = {
+            "completeness": 0.0,
+            "consistency": 0.0,
+            "accuracy": 0.0,
+            "relevance": 0.0
+        }
+        
+        # Basic assessment based on data content
+        if data.get("fused_entities"):
+            quality_metrics["completeness"] = min(len(data["fused_entities"]) * 0.1, 1.0)
+        
+        return quality_metrics
     
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """Validate input data before execution."""

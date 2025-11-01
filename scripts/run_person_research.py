@@ -44,11 +44,8 @@ async def execute_person_research_workflow():
     state = create_initial_state(
         user_request=user_request,
         investigation_id=f"PERSON_RESEARCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-        investigation_type="person_research",
-        target_name="Ishan Parihar",
-        target_location="Noida",
-        privacy_compliance=True,
-        data_retention_policy="30_days"
+        initiator="user",
+        priority="high"
     )
     
     print("   Person research parameters configured")

@@ -49,6 +49,15 @@ async def final_validation_test():
         print(f"Errors: {len(final_state['errors'])}")
         print(f"Warnings: {len(final_state['warnings'])}")
         
+        # Print error details
+        if final_state['errors']:
+            print("\nError details:")
+            for i, error in enumerate(final_state['errors'], 1):
+                print(f"  {i}. {error.get('message', 'No message')}")
+                print(f"     Phase: {error.get('phase', 'Unknown')}")
+                print(f"     Agent: {error.get('agent', 'Unknown')}")
+                print(f"     Timestamp: {error.get('timestamp', 'Unknown')}")
+        
         # Validation Checks
         print("\n=== VALIDATION RESULTS ===")
         

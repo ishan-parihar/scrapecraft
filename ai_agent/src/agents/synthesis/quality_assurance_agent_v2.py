@@ -399,81 +399,165 @@ class QualityAssuranceAgentV2:
             "invalid_source_claims": []
         }
         
-        # Extract all claims from intelligence
-        claims = self._extract_claims_from_intelligence(intelligence)
-        source_link_results["total_claims"] = len(claims)
+        # Count and validate all intelligence items that should have source links
+        total_items = 0
         
-        # Extract source links from intelligence findings
-        key_findings = intelligence.get("key_findings", [])
-        insights = intelligence.get("insights", [])
-        
-        all_intelligence_items = key_findings + insights
-        
-        for item in all_intelligence_items:
-            description = item.get("description", "")
-            source_links = item.get("source_links", [])
+        # Process key findings
+        for finding in intelligence.get("key_findings", []):
+            description = finding.get("description", "")
+            source_links = finding.get("source_links", [])
             
-            if description:
-                source_link_results["claims_with_links"] += 1 if source_links else 0
-                source_link_results["claims_without_links"] += 1 if not source_links else 0
-                
-                # Validate each source link
-                item_valid_links = 0
-                item_invalid_links = 0
-                
-                for link in source_links:
-                    is_valid = self._validate_source_link(link)
-                    if is_valid:
-                        item_valid_links += 1
-                        source_link_results["valid_links"] += 1
-                    else:
-                        item_invalid_links += 1
-                        source_link_results["invalid_links"] += 1
+            if description:  # Count this as a claim that needs source links
+                total_items += 1
+                if source_links:
+                    source_link_results["claims_with_links"] += 1
                     
-                    source_link_results["link_details"].append({
-                        "claim": description[:100] + "..." if len(description) > 100 else description,
-                        "source_link": link,
-                        "is_valid": is_valid,
-                        "validation_timestamp": datetime.utcnow().isoformat()
-                    })
-                
-                # Track claims with missing or invalid sources
-                if not source_links:
+                    # Validate each source link
+                    for link in source_links:
+                        is_valid = self._validate_source_link(link)
+                        if is_valid:
+                            source_link_results["valid_links"] += 1
+                        else:
+                            source_link_results["invalid_links"] += 1
+                        
+                        source_link_results["link_details"].append({
+                            "claim": description[:100] + "..." if len(description) > 100 else description,
+                            "source_link": link,
+                            "is_valid": is_valid,
+                            "validation_timestamp": datetime.utcnow().isoformat()
+                        })
+                else:
+                    source_link_results["claims_without_links"] += 1
                     source_link_results["missing_source_claims"].append({
                         "claim": description[:200] + "..." if len(description) > 200 else description,
-                        "item_type": "key_finding" if item in key_findings else "insight",
+                        "item_type": "key_finding",
                         "severity": "critical"
                     })
-                elif item_invalid_links > 0:
-                    source_link_results["invalid_source_claims"].append({
+        
+        # Process insights
+        for insight in intelligence.get("insights", []):
+            description = insight.get("description", "")
+            source_links = insight.get("source_links", [])
+            
+            if description:  # Count this as a claim that needs source links
+                total_items += 1
+                if source_links:
+                    source_link_results["claims_with_links"] += 1
+                    
+                    # Validate each source link
+                    for link in source_links:
+                        is_valid = self._validate_source_link(link)
+                        if is_valid:
+                            source_link_results["valid_links"] += 1
+                        else:
+                            source_link_results["invalid_links"] += 1
+                        
+                        source_link_results["link_details"].append({
+                            "claim": description[:100] + "..." if len(description) > 100 else description,
+                            "source_link": link,
+                            "is_valid": is_valid,
+                            "validation_timestamp": datetime.utcnow().isoformat()
+                        })
+                else:
+                    source_link_results["claims_without_links"] += 1
+                    source_link_results["missing_source_claims"].append({
                         "claim": description[:200] + "..." if len(description) > 200 else description,
-                        "item_type": "key_finding" if item in key_findings else "insight",
-                        "invalid_links": item_invalid_links,
-                        "total_links": len(source_links),
-                        "severity": "high"
+                        "item_type": "insight",
+                        "severity": "critical"
                     })
         
+        # Process recommendations
+        for recommendation in intelligence.get("recommendations", []):
+            description = recommendation.get("description", "")
+            source_links = recommendation.get("source_links", [])
+            
+            if description:  # Count this as a claim that needs source links
+                total_items += 1
+                if source_links:
+                    source_link_results["claims_with_links"] += 1
+                    
+                    # Validate each source link
+                    for link in source_links:
+                        is_valid = self._validate_source_link(link)
+                        if is_valid:
+                            source_link_results["valid_links"] += 1
+                        else:
+                            source_link_results["invalid_links"] += 1
+                        
+                        source_link_results["link_details"].append({
+                            "claim": description[:100] + "..." if len(description) > 100 else description,
+                            "source_link": link,
+                            "is_valid": is_valid,
+                            "validation_timestamp": datetime.utcnow().isoformat()
+                        })
+                else:
+                    source_link_results["claims_without_links"] += 1
+                    source_link_results["missing_source_claims"].append({
+                        "claim": description[:200] + "..." if len(description) > 200 else description,
+                        "item_type": "recommendation",
+                        "severity": "critical"
+                    })
+        
+        # Process executive summary if it's a dictionary with source links
+        executive_summary = intelligence.get("executive_summary", "")
+        if isinstance(executive_summary, dict):
+            summary_content = executive_summary.get("content", "") or executive_summary.get("summary", "")
+            summary_source_links = executive_summary.get("source_links", [])
+            
+            if summary_content:  # Count executive summary as a claim that needs source links
+                total_items += 1
+                if summary_source_links:
+                    source_link_results["claims_with_links"] += 1
+                    
+                    # Validate executive summary links
+                    for link in summary_source_links:
+                        is_valid = self._validate_source_link(link)
+                        if is_valid:
+                            source_link_results["valid_links"] += 1
+                        else:
+                            source_link_results["invalid_links"] += 1
+                        
+                        source_link_results["link_details"].append({
+                            "claim": summary_content[:100] + "..." if len(summary_content) > 100 else summary_content,
+                            "source_link": link,
+                            "is_valid": is_valid,
+                            "validation_timestamp": datetime.utcnow().isoformat()
+                        })
+                else:
+                    source_link_results["claims_without_links"] += 1
+                    source_link_results["missing_source_claims"].append({
+                        "claim": summary_content[:200] + "..." if len(summary_content) > 200 else summary_content,
+                        "item_type": "executive_summary",
+                        "severity": "critical"
+                    })
+        
+        # Update total claims with all processed items
+        source_link_results["total_claims"] = total_items
+       
         # Calculate coverage and validity rates
         if source_link_results["total_claims"] > 0:
             source_link_results["coverage_rate"] = (
                 source_link_results["claims_with_links"] / source_link_results["total_claims"]
             )
-        
+       
         total_links = source_link_results["valid_links"] + source_link_results["invalid_links"]
         if total_links > 0:
             source_link_results["validity_rate"] = (
                 source_link_results["valid_links"] / total_links
             )
-        
+        elif source_link_results["valid_links"] == 0 and source_link_results["invalid_links"] == 0:
+            # If there are no links at all, validity rate is 0
+            source_link_results["validity_rate"] = 0.0
+       
         # Enforce mandatory requirements
         coverage_threshold_met = source_link_results["coverage_rate"] >= self.qa_config["min_source_link_coverage"]
         validity_threshold_met = source_link_results["validity_rate"] >= self.qa_config["min_valid_link_rate"]
-        
+       
         source_link_results["mandatory_requirements_met"] = coverage_threshold_met and validity_threshold_met
         source_link_results["compliance_status"] = "COMPLIANT" if source_link_results["mandatory_requirements_met"] else "NON_COMPLIANT"
-        
+       
         self.logger.info(f"Source link validation: Coverage={source_link_results['coverage_rate']:.2f}, Validity={source_link_results['validity_rate']:.2f}, Status={source_link_results['compliance_status']}")
-        
+       
         return source_link_results
     
     def _validate_source_link(self, link: str) -> bool:

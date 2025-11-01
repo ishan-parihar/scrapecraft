@@ -50,7 +50,7 @@ class OSINTWorkflow:
         self.logger = logging.getLogger(f"{__name__}.OSINTWorkflow")
         
         # Initialize agents
-        from ..utils.tools.langchain_tools import get_global_tool_manager
+        from ..utils.tools.scrapegraph_integration import get_global_tool_manager
         tool_manager = get_global_tool_manager()
         
         self.objective_agent = ObjectiveDefinitionAgent()
@@ -154,6 +154,9 @@ class OSINTWorkflow:
                 {"duration": 5.0, "agents_used": ["ObjectiveDefinitionAgent", "StrategyFormulationAgent"]}
             )
             
+            # Update progress percentage
+            state["progress_percentage"] = calculate_progress(state)
+            
             self.logger.info("Planning phase completed")
             
         except Exception as e:
@@ -193,6 +196,9 @@ class OSINTWorkflow:
                 InvestigationStatus.COMPLETED,
                 {"duration": 10.0, "data_sources_count": 5}
             )
+            
+            # Update progress percentage
+            state["progress_percentage"] = calculate_progress(state)
             
             self.logger.info("Collection phase completed")
             
@@ -237,6 +243,9 @@ class OSINTWorkflow:
                 {"duration": 15.0, "patterns_found": 3}
             )
             
+            # Update progress percentage
+            state["progress_percentage"] = calculate_progress(state)
+            
             self.logger.info("Analysis phase completed")
             
         except Exception as e:
@@ -279,6 +288,9 @@ class OSINTWorkflow:
                 InvestigationStatus.COMPLETED,
                 {"duration": 8.0, "report_sections": 5}
             )
+            
+            # Update progress percentage
+            state["progress_percentage"] = calculate_progress(state)
             
             self.logger.info("Synthesis phase completed")
             
@@ -384,8 +396,9 @@ async def search_coordination_node(state: InvestigationState) -> InvestigationSt
         public_records_agent = PublicRecordsCollectorAgent()
         dark_web_agent = DarkWebCollectorAgent()
         
-        # Determine which sources to search based on objectives
+        # Determine which sources to search based on both objectives and strategy
         objectives = state.get("objectives", {})
+        strategy = state.get("strategy", {})
         
         search_coordination_results = {
             "surface_web_sources": [],
@@ -396,7 +409,7 @@ async def search_coordination_node(state: InvestigationState) -> InvestigationSt
             "sources_identified": 0
         }
         
-        # Determine appropriate sources based on investigation objectives
+        # Determine appropriate sources based on investigation objectives (backward compatibility)
         if "web_search" in str(objectives).lower() or "surface" in str(objectives).lower():
             search_coordination_results["surface_web_sources"] = ["google", "bing", "duckduckgo"]
         
@@ -408,6 +421,43 @@ async def search_coordination_node(state: InvestigationState) -> InvestigationSt
         
         if "dark_web" in str(objectives).lower() or "tor" in str(objectives).lower():
             search_coordination_results["dark_web_sources"] = ["tor_networks", "hidden_services"]
+        
+        # Determine sources based on strategy (primary method)
+        strategy_data_sources = strategy.get("data_sources", {})
+        primary_sources = strategy_data_sources.get("primary_sources", [])
+        secondary_sources = strategy_data_sources.get("secondary_sources", [])
+        
+        # Process all data sources to identify search targets
+        all_sources = primary_sources + secondary_sources
+        for source in all_sources:
+            source_type = source.get("type", "").lower()
+            if source_type == "surface_web":
+                if not search_coordination_results["surface_web_sources"]:  # Only add if not already set
+                    search_coordination_results["surface_web_sources"] = ["google", "bing", "duckduckgo"]
+            elif source_type == "social_media":
+                if not search_coordination_results["social_media_sources"]:  # Only add if not already set
+                    search_coordination_results["social_media_sources"] = ["twitter", "linkedin", "facebook", "instagram"]
+            elif source_type == "public_records":
+                if not search_coordination_results["public_records_sources"]:  # Only add if not already set
+                    search_coordination_results["public_records_sources"] = ["government_databases", "court_records", "property_records"]
+            elif source_type == "dark_web":
+                if not search_coordination_results["dark_web_sources"]:  # Only add if not already set
+                    search_coordination_results["dark_web_sources"] = ["tor_networks", "hidden_services"]
+        
+        # Also check for specific sources in strategy
+        for source in all_sources:
+            specific_sources = source.get("specific_sources", [])
+            for specific_source in specific_sources:
+                specific_source_lower = specific_source.lower()
+                if "search engine" in specific_source_lower or "public website" in specific_source_lower:
+                    if not search_coordination_results["surface_web_sources"]:
+                        search_coordination_results["surface_web_sources"] = ["google", "bing", "duckduckgo"]
+                elif "social" in specific_source_lower:
+                    if not search_coordination_results["social_media_sources"]:
+                        search_coordination_results["social_media_sources"] = ["twitter", "linkedin", "facebook", "instagram"]
+                elif "public records" in specific_source_lower or "records" in specific_source_lower:
+                    if not search_coordination_results["public_records_sources"]:
+                        search_coordination_results["public_records_sources"] = ["government_databases", "court_records", "property_records"]
         
         search_coordination_results["sources_identified"] = (
             len(search_coordination_results["surface_web_sources"]) +
@@ -430,7 +480,7 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
     """Collect data from identified sources."""
     try:
         # Initialize collection agents with tools
-        from ..utils.tools.langchain_tools import get_global_tool_manager
+        from ..utils.tools.scrapegraph_integration import get_global_tool_manager
         tool_manager = get_global_tool_manager()
         
         surface_web_agent = SurfaceWebCollectorAgent(tools=tool_manager.tools)
@@ -448,9 +498,10 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
         # Collect surface web data if requested
         if state["search_coordination_results"]["surface_web_sources"]:
             surface_web_input = {
-                "task_type": "web_search",
-                "search_queries": [state.get("user_request", "general search")],
-                "sources": state["search_coordination_results"]["surface_web_sources"]
+                "task_type": "search",
+                "queries": [state.get("user_request", "general search")],
+                "engines": state["search_coordination_results"]["surface_web_sources"],
+                "max_results": 5
             }
             surface_result = await surface_web_agent.execute(surface_web_input)
             if surface_result.success:
@@ -458,9 +509,110 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
                 raw_data["total_records"] += len(surface_result.data.get("results", []))
                 state["agents_participated"].append("SurfaceWebCollectorAgent")
                 state["confidence_level"] = max(state["confidence_level"], surface_result.confidence)
+                
+                # Enhanced URL extraction from surface web results and add to sources_used
+                extracted_urls = []
+                
+                # Handle different possible result structures
+                result_data = surface_result.data
+                
+                # Check if there are results at the top level
+                if "results" in result_data:
+                    all_results = result_data["results"]
+                else:
+                    all_results = [result_data]  # If single result object, wrap in list
+               
+                # Process all results to extract URLs
+                for result_item in all_results:
+                    if isinstance(result_item, dict):
+                        # Check for direct URLs in common fields
+                        if "url" in result_item and result_item["url"]:
+                            extracted_urls.append(result_item["url"])
+                        elif "urls" in result_item and isinstance(result_item["urls"], list):
+                            extracted_urls.extend(result_item["urls"])
+                        elif "links" in result_item and isinstance(result_item["links"], list):
+                            for link in result_item["links"]:
+                                if isinstance(link, str) and link.startswith("http"):
+                                    extracted_urls.append(link)
+                                elif isinstance(link, dict) and "url" in link:
+                                    extracted_urls.append(link["url"])
+                                elif isinstance(link, dict) and "link" in link:
+                                    extracted_urls.append(link["link"])
+                        
+                        # Check for nested search results
+                        if "results" in result_item:
+                            nested_results = result_item["results"]
+                            if isinstance(nested_results, list):
+                                for nested_result in nested_results:
+                                    if isinstance(nested_result, dict):
+                                        # Extract URLs from nested results
+                                        if "url" in nested_result and nested_result["url"]:
+                                            extracted_urls.append(nested_result["url"])
+                                        elif "link" in nested_result and nested_result["link"]:
+                                            extracted_urls.append(nested_result["link"])
+                                        elif "links" in nested_result and isinstance(nested_result["links"], list):
+                                            for link in nested_result["links"]:
+                                                if isinstance(link, str) and link.startswith("http"):
+                                                    extracted_urls.append(link)
+                                                elif isinstance(link, dict) and "url" in link:
+                                                    extracted_urls.append(link["url"])
+                                
+                # Also check for direct sources in the result data
+                if "sources" in result_data and isinstance(result_data["sources"], list):
+                    extracted_urls.extend(result_data["sources"])
+                
+                # Check if result data contains source links or references
+                if "source_links" in result_data and isinstance(result_data["source_links"], list):
+                    extracted_urls.extend(result_data["source_links"])
+                if "references" in result_data and isinstance(result_data["references"], list):
+                    extracted_urls.extend(result_data["references"])
+                if "citations" in result_data and isinstance(result_data["citations"], list):
+                    extracted_urls.extend(result_data["citations"])
+                
+                # Extract URLs from any string content that might contain them
+                def extract_urls_from_content(content):
+                    if isinstance(content, str):
+                        # Simple URL extraction from string content
+                        import re
+                        url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+                        found_urls = re.findall(url_pattern, content)
+                        return found_urls
+                    elif isinstance(content, dict):
+                        urls = []
+                        for key, value in content.items():
+                            if isinstance(value, (str, dict, list)):
+                                urls.extend(extract_urls_from_content(value))
+                        return urls
+                    elif isinstance(content, list):
+                        urls = []
+                        for item in content:
+                            if isinstance(item, (str, dict, list)):
+                                urls.extend(extract_urls_from_content(item))
+                        return urls
+                    return []
+                
+                # Extract additional URLs from string content in the result data
+                extracted_urls.extend(extract_urls_from_content(result_data))
+                
+                # Add extracted URLs to sources_used (only unique HTTPS URLs)
+                for url in extracted_urls:
+                    if url and url.startswith("https://") and url not in state["sources_used"]:
+                        state["sources_used"].append(url)
+                        
+                # Also add any HTTP URLs if we don't have enough HTTPS URLs yet
+                for url in extracted_urls:
+                    if url and url.startswith("http://") and url not in state["sources_used"] and len([u for u in state["sources_used"] if u.startswith("https://")]) < 3:
+                        state["sources_used"].append(url)
+                
+                # Log how many URLs were added
+                unique_https_urls = [url for url in extracted_urls if url and url.startswith("https://")]
+                unique_http_urls = [url for url in extracted_urls if url and url.startswith("http://")]
+                logger.info(f"Extracted {len(unique_https_urls)} unique HTTPS URLs and {len(unique_http_urls)} HTTP URLs from surface web collection")
+                logger.info(f"Total sources in state now: {len(state['sources_used'])}")
             else:
                 state = add_warning(state, f"Surface web collection failed: {surface_result.error_message}")
-        
+                logger.warning(f"Surface web collection error: {surface_result.error_message}")
+
         # Collect social media data if requested
         if state["search_coordination_results"]["social_media_sources"]:
             social_media_input = {
@@ -476,7 +628,7 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
                 state["confidence_level"] = max(state["confidence_level"], social_result.confidence)
             else:
                 state = add_warning(state, f"Social media collection failed: {social_result.error_message}")
-        
+
         # Collect public records data if requested
         if state["search_coordination_results"]["public_records_sources"]:
             public_records_input = {
@@ -492,7 +644,7 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
                 state["confidence_level"] = max(state["confidence_level"], public_result.confidence)
             else:
                 state = add_warning(state, f"Public records collection failed: {public_result.error_message}")
-        
+
         # Collect dark web data if requested (with authorization)
         if state["search_coordination_results"]["dark_web_sources"]:
             dark_web_input = {
@@ -509,11 +661,11 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
                 state["confidence_level"] = max(state["confidence_level"], dark_result.confidence)
             else:
                 state = add_warning(state, f"Dark web collection failed: {dark_result.error_message}")
-        
+
         state["search_results"] = search_results
         state["raw_data"] = raw_data
         state["collection_status"]["data_collection"] = InvestigationStatus.COMPLETED
-        
+
         # Calculate data quality metrics based on what was collected
         total_records = raw_data["total_records"]
         state["data_quality_metrics"] = {
@@ -522,47 +674,49 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
             "relevance": 0.8,  # Default for now
             "freshness": 0.9   # Default for now
         }
-        
+
         return state
-        
+
     except Exception as e:
         return add_error(state, str(e), InvestigationPhase.COLLECTION, "data_collection_node")
 
 async def data_fusion_node(state: InvestigationState) -> InvestigationState:
-     """Fuse and correlate data from multiple sources."""
-     try:
-         config = AgentConfig(
-             agent_id="data_fusion_agent",
-             role="Data Fusion Agent",
-             description="Agent responsible for fusing and integrating data from multiple sources"
-         )
-         agent = DataFusionAgent(config=config)
-         
-         # Prepare input data for data fusion
-         fusion_input = {
-             "search_results": state.get("search_results", {}),
-             "raw_data": state.get("raw_data", {}),
-             "sources_used": state.get("sources_used", []),
-             "user_request": state.get("user_request", ""),
-             "objectives": state.get("objectives", {})
-         }
-         
-         # Execute data fusion
-         result = await agent.execute(fusion_input)
-         
-         if result.success:
-             state["fused_data"] = result.data
-             state["agents_participated"].append("DataFusionAgent")
-             state["confidence_level"] = max(state["confidence_level"], result.confidence)
-             state["analysis_status"]["data_fusion"] = InvestigationStatus.COMPLETED
-         else:
-             error_msg = result.error_message if result.error_message else "Data fusion failed"
-             state = add_error(state, error_msg, InvestigationPhase.ANALYSIS, "DataFusionAgent")
-         
-         return state
-         
-     except Exception as e:
-         return add_error(state, str(e), InvestigationPhase.ANALYSIS, "data_fusion_node")
+    """Fuse and correlate data from multiple sources."""
+    try:
+        config = AgentConfig(
+            agent_id="data_fusion_agent",
+            role="Data Fusion Agent",
+            description="Agent responsible for fusing and integrating data from multiple sources"
+        )
+        agent = DataFusionAgent(config=config)
+        
+        # Prepare input data for data fusion
+        fusion_input = {
+            "task_type": "data_fusion",
+            "collection_results": state.get("search_results", {}),
+            "search_results": state.get("search_results", {}),
+            "raw_data": state.get("raw_data", {}),
+            "sources_used": state.get("sources_used", []),
+            "user_request": state.get("user_request", ""),
+            "objectives": state.get("objectives", {})
+        }
+        
+        # Execute data fusion
+        result = await agent.execute(fusion_input)
+        
+        if result.success:
+            state["fused_data"] = result.data
+            state["agents_participated"].append("DataFusionAgent")
+            state["confidence_level"] = max(state["confidence_level"], result.confidence)
+            state["analysis_status"]["data_fusion"] = InvestigationStatus.COMPLETED
+        else:
+            error_msg = result.error_message if result.error_message else "Data fusion failed"
+            state = add_error(state, error_msg, InvestigationPhase.ANALYSIS, "DataFusionAgent")
+        
+        return state
+
+    except Exception as e:
+        return add_error(state, str(e), InvestigationPhase.ANALYSIS, "data_fusion_node")
 
 
 async def pattern_recognition_node(state: InvestigationState) -> InvestigationState:
@@ -614,7 +768,7 @@ async def pattern_recognition_node(state: InvestigationState) -> InvestigationSt
             state = add_error(state, error_msg, InvestigationPhase.ANALYSIS, "PatternRecognitionAgent")
         
         return state
-        
+
     except Exception as e:
         return add_error(state, str(e), InvestigationPhase.ANALYSIS, "pattern_recognition_node")
 
@@ -666,7 +820,7 @@ async def contextual_analysis_node(state: InvestigationState) -> InvestigationSt
             state = add_error(state, error_msg, InvestigationPhase.ANALYSIS, "ContextualAnalysisAgent")
         
         return state
-        
+
     except Exception as e:
         return add_error(state, str(e), InvestigationPhase.ANALYSIS, "contextual_analysis_node")
 
@@ -702,7 +856,7 @@ async def intelligence_synthesis_node(state: InvestigationState) -> Investigatio
             return add_error(state, error_msg or "Intelligence synthesis failed", InvestigationPhase.SYNTHESIS, "intelligence_synthesis_node")
         
         return state
-        
+
     except Exception as e:
         return add_error(state, str(e) or "Error in intelligence synthesis node", InvestigationPhase.SYNTHESIS, "intelligence_synthesis_node")
 
@@ -736,7 +890,7 @@ async def quality_assurance_node(state: InvestigationState) -> InvestigationStat
             return add_error(state, error_msg, InvestigationPhase.SYNTHESIS, "quality_assurance_node")
         
         return state
-        
+
     except Exception as e:
         return add_error(state, str(e), InvestigationPhase.SYNTHESIS, "quality_assurance_node")
 
@@ -780,6 +934,6 @@ async def report_generation_node(state: InvestigationState) -> InvestigationStat
             return add_error(state, error_msg, InvestigationPhase.SYNTHESIS, "report_generation_node")
         
         return state
-        
+
     except Exception as e:
         return add_error(state, str(e), InvestigationPhase.SYNTHESIS, "report_generation_node")

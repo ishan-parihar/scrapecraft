@@ -10,10 +10,10 @@ import re
 import json
 import logging
 
-from ..base.osint_agent import OSINTAgent, AgentConfig
+from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
-class PatternRecognitionAgent(OSINTAgent):
+class PatternRecognitionAgent(LLMOSINTAgent):
     """
     Agent responsible for recognizing patterns in OSINT data.
     Handles behavioral patterns, communication patterns, network patterns, and anomaly detection.
@@ -929,29 +929,141 @@ class PatternRecognitionAgent(OSINTAgent):
 
     def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
         """
-        Process and structure the raw output from the agent.
+        Process the raw output from the agent into structured data.
         """
-        # For this implementation, we're already returning structured data from our methods
-        # This is a fallback in case raw text needs to be processed
         try:
-            # If raw_output is already a JSON string, parse it
-            if isinstance(raw_output, str) and raw_output.strip().startswith('{'):
-                return json.loads(raw_output)
+            # Clean the raw output - remove markdown formatting, extra whitespace, etc.
+            cleaned_output = self._clean_raw_output(raw_output)
+            
+            # Try to parse JSON output
+            if cleaned_output.strip().startswith('{'):
+                structured_data = json.loads(cleaned_output)
             else:
-                # If it's already a dictionary, return it
-                if isinstance(raw_output, dict):
-                    return raw_output
+                # Extract JSON from text if embedded
+                json_match = re.search(r'\{.*\}', cleaned_output, re.DOTALL)
+                if json_match:
+                    structured_data = json.loads(json_match.group())
                 else:
-                    # Return as a simple response
-                    return {
-                        "response": str(raw_output),
-                        "processed_at": datetime.utcnow().isoformat()
-                    }
-        except json.JSONDecodeError:
+                    # Fallback: parse text manually
+                    structured_data = self._parse_text_output(cleaned_output)
+            
+            # Validate and enhance the structured data
+            return self._validate_and_enhance_patterns(structured_data)
+            
+        except Exception as e:
+            self.logger.error(f"Error processing output: {e}")
+            try:
+                cleaned_output = self._clean_raw_output(raw_output)
+            except:
+                cleaned_output = raw_output  # fallback if cleaning fails
             return {
-                "response": str(raw_output),
-                "processed_at": datetime.utcnow().isoformat()
+                "error": "Failed to process output",
+                "raw_output": raw_output,
+                "cleaned_output": cleaned_output,
+                "fallback_patterns": self._generate_fallback_patterns()
             }
+
+    def _clean_raw_output(self, raw_output: str) -> str:
+        """Clean raw output to extract valid JSON."""
+        cleaned = raw_output.strip()
+        
+        # Remove markdown code block formatting
+        if cleaned.startswith('```json'):
+            cleaned = cleaned[7:]  # Remove ```json
+        elif cleaned.startswith('```'):
+            cleaned = cleaned[3:]   # Remove ```
+        
+        if cleaned.endswith('```'):
+            cleaned = cleaned[:-3]  # Remove trailing ```
+        
+        # Remove any leading/trailing text that might be around the JSON
+        # Find the first { and last }
+        first_brace = cleaned.find('{')
+        last_brace = cleaned.rfind('}')
+        
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            cleaned = cleaned[first_brace:last_brace+1]
+        
+        return cleaned
+
+    def _validate_and_enhance_patterns(self, patterns: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and enhance the pattern recognition results."""
+        enhanced = patterns.copy()
+        
+        # Add metadata
+        enhanced["metadata"] = {
+            "agent_id": self.config.agent_id,
+            "processing_timestamp": datetime.utcnow().isoformat(),
+            "confidence_score": self._calculate_pattern_confidence(enhanced),
+            "pattern_quality": self._assess_pattern_quality(enhanced)
+        }
+        
+        return enhanced
+
+    def _parse_text_output(self, text: str) -> Dict[str, Any]:
+        """Parse non-JSON text output into structured data."""
+        # This is a fallback parser for when JSON parsing fails
+        patterns = {
+            "detected_patterns": [],
+            "analysis_success": True,
+            "source": "pattern_recognition",
+            "timestamp": datetime.utcnow().timestamp()
+        }
+        
+        # Simple text parsing logic
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Add basic parsing logic here
+            if "pattern" in line.lower() or "anomaly" in line.lower():
+                patterns["detected_patterns"].append({"description": line, "confidence": 0.5})
+        
+        return patterns
+
+    def _generate_fallback_patterns(self) -> Dict[str, Any]:
+        """Generate basic patterns when parsing fails."""
+        return {
+            "detected_patterns": [],
+            "analysis_success": True,
+            "source": "pattern_recognition",
+            "timestamp": datetime.utcnow().timestamp(),
+            "error": "Generated fallback patterns due to processing error"
+        }
+
+    def _calculate_pattern_confidence(self, patterns: Dict[str, Any]) -> float:
+        """Calculate confidence score for the pattern recognition results."""
+        score = 0.0
+        total_checks = 0
+        
+        # Check for detected patterns
+        if patterns.get("detected_patterns"):
+            score += min(len(patterns["detected_patterns"]) / 5, 1.0)  # Up to 1.0 for 5+ patterns
+        total_checks += 1
+        
+        # Check for analysis success
+        if patterns.get("analysis_success"):
+            score += 0.5  # Half point for successful analysis
+        total_checks += 1
+        
+        return score / total_checks if total_checks > 0 else 0.0
+
+    def _assess_pattern_quality(self, patterns: Dict[str, Any]) -> Dict[str, Any]:
+        """Assess pattern quality metrics."""
+        quality_metrics = {
+            "completeness": 0.0,
+            "relevance": 0.0,
+            "accuracy": 0.0,
+            "significance": 0.0
+        }
+        
+        # Basic assessment based on pattern content
+        if patterns.get("detected_patterns"):
+            quality_metrics["completeness"] = min(len(patterns["detected_patterns"]) * 0.2, 1.0)
+        
+        return quality_metrics
 
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """

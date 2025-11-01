@@ -9,7 +9,7 @@ import hashlib
 from datetime import datetime, timedelta
 
 from ..base.osint_agent import LLMOSINTAgent, AgentConfig
-from ...utils.tools.langchain_tools import get_global_tool_manager, ToolManager
+from ...utils.tools.scrapegraph_integration import get_global_tool_manager, ToolManager
 
 
 class DarkWebCollectorAgent(LLMOSINTAgent):
