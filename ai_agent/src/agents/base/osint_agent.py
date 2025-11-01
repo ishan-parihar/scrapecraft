@@ -337,12 +337,36 @@ class LLMOSINTAgent(OSINTAgent):
             # Import here to avoid circular dependencies and make optional
             from langchain_openai import ChatOpenAI
             from langchain_core.messages import SystemMessage, HumanMessage
+            import os
             
-            # Initialize LLM
+            # Get API configuration from environment variables
+            api_key = os.getenv('OPENAI_API_KEY', 'default-key')
+            base_url = os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+            model_name = os.getenv('OPENAI_MODEL_NAME', self.config.llm_model)
+            
+            # Initialize LLM with custom API configuration
+            # Set environment variables temporarily for this call
+            original_api_key = os.environ.get('OPENAI_API_KEY')
+            original_base_url = os.environ.get('OPENAI_BASE_URL')
+            
+            os.environ['OPENAI_API_KEY'] = api_key
+            os.environ['OPENAI_BASE_URL'] = base_url
+            
             llm = ChatOpenAI(
-                model=self.config.llm_model,
+                model=model_name,
                 temperature=self.config.temperature
             )
+            
+            # Restore original environment variables if they existed
+            if original_api_key is not None:
+                os.environ['OPENAI_API_KEY'] = original_api_key
+            elif 'OPENAI_API_KEY' in os.environ:
+                del os.environ['OPENAI_API_KEY']
+                
+            if original_base_url is not None:
+                os.environ['OPENAI_BASE_URL'] = original_base_url
+            elif 'OPENAI_BASE_URL' in os.environ:
+                del os.environ['OPENAI_BASE_URL']
             
             # Get the system prompt
             system_prompt = self._get_system_prompt()
@@ -365,10 +389,11 @@ class LLMOSINTAgent(OSINTAgent):
             self.logger.warning("LangChain not available, using mock response")
             return f"Mock response for input: {input_data.get('input', str(input_data))[:200]}..."
         except Exception as e:
-            # Check if the error is due to missing API key
+            # Check if the error is due to incompatible API response format or missing API key
             error_msg = str(e).lower()
-            if 'api_key' in error_msg or 'openai' in error_msg:
-                self.logger.warning(f"LLM API unavailable: {e}. Using local fallback.")
+            if ('api_key' in error_msg or 'openai' in error_msg or 
+                'authorization' in error_msg or 'choices' in error_msg or 'null value' in error_msg):
+                self.logger.warning(f"LLM API unavailable or incompatible response: {e}. Using local fallback.")
                 return await self._execute_local_fallback(input_data)
             else:
                 self.logger.error(f"LLM execution failed: {e}")

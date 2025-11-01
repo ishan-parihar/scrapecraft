@@ -1,0 +1,25 @@
+[
+  {
+    "timestamp": "2025-11-01T23:20:01.273206",
+    "agent_name": "Test Investigation Agent",
+    "success": true,
+    "execution_time_seconds": 0.0005736351013183594,
+    "input_summary": {
+      "input": "string (49 chars)",
+      "request_type": "string (21 chars)",
+      "sources": "list (1 items)",
+      "context": "string (45 chars)"
+    },
+    "output_summary": {
+      "success": "bool",
+      "data": "dict (2 keys)",
+      "confidence": "float",
+      "sources": "list (0 items)",
+      "metadata": "dict (4 keys)",
+      "error_message": "NoneType",
+      "execution_time": "float",
+      "timestamp": "datetime"
+    },
+    "error_message": null
+  }
+]

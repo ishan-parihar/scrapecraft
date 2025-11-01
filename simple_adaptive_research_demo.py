@@ -10,6 +10,11 @@ import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import the implemented components directly
 from ai_agent.src.agents.base.osint_agent import AgentConfig

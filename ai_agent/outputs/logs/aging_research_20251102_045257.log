@@ -1,0 +1,47 @@
+2025-11-02 04:52:57,148 - __main__ - INFO - Logging initialized for aging research: ai_agent/outputs/logs/aging_research_20251102_045257.log
+2025-11-02 04:52:57,148 - ai_agent.src.agents.base.osint_agent.AI Planner Agent for Aging Research - INFO - Initialized AI Planner Agent for Aging Research agent with ID: 236f8f16-35a9-4ceb-a80a-bd33b3bfc457
+2025-11-02 04:52:57,149 - ai_agent.src.agents.base.osint_agent.Objective Definition Agent for Aging Research - INFO - Initialized Objective Definition Agent for Aging Research agent with ID: d6a56393-085f-41cf-97b3-0de79deddadb
+2025-11-02 04:52:57,149 - ai_agent.src.agents.base.osint_agent.Strategy Formulation Agent for Aging Research - INFO - Initialized Strategy Formulation Agent for Aging Research agent with ID: 2a5794ed-f1b8-4673-9fd7-a5ad2032553f
+2025-11-02 04:52:57,149 - ai_agent.src.agents.base.osint_agent.Data Collection Agent for Aging Research - INFO - Initialized Data Collection Agent for Aging Research agent with ID: fa3fde25-2433-40c7-8dc6-44461a605c04
+2025-11-02 04:52:57,149 - __main__ - INFO - 🚀 Starting comprehensive aging research: A Manual to Immortality: An Analysis of the Hallmarks of Aging and Their Therapeutic Interventions
+2025-11-02 04:52:57,149 - __main__ - INFO - Starting project planning phase
+2025-11-02 04:52:57,149 - ai_agent.src.agents.base.osint_agent.AI Planner Agent for Aging Research - INFO - Starting execution for AI Planner Agent for Aging Research agent
+2025-11-02 04:52:58,262 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-11-02 04:52:58,263 - ai_agent.src.agents.base.osint_agent.AI Planner Agent for Aging Research - WARNING - LLM API unavailable or incompatible response: Error code: 401 - {'error': {'message': 'Incorrect API key provided: default-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}. Using local fallback.
+2025-11-02 04:52:58,263 - ai_agent.src.agents.base.osint_agent.AI Planner Agent for Aging Research - ERROR - Error processing AI Planner output: Missing required field: project_name
+2025-11-02 04:52:58,263 - ai_agent.src.agents.base.osint_agent.AI Planner Agent for Aging Research - INFO - Successfully completed execution in 1.11s
+2025-11-02 04:52:58,264 - ai_agent.src.agents.base.osint_agent.AI Planner Agent for Aging Research - INFO - Project structure created at: project_7e429d1d
+2025-11-02 04:52:58,264 - __main__ - INFO - Project plan created: Adaptive Research Project
+2025-11-02 04:52:58,264 - __main__ - INFO - Starting objective definition phase
+2025-11-02 04:52:58,264 - ai_agent.src.agents.base.osint_agent.Objective Definition Agent for Aging Research - INFO - Starting execution for Objective Definition Agent for Aging Research agent
+2025-11-02 04:52:58,585 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-11-02 04:52:58,586 - ai_agent.src.agents.base.osint_agent.Objective Definition Agent for Aging Research - WARNING - LLM API unavailable or incompatible response: Error code: 401 - {'error': {'message': 'Incorrect API key provided: default-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}. Using local fallback.
+2025-11-02 04:52:58,586 - ai_agent.src.agents.base.osint_agent.Objective Definition Agent for Aging Research - ERROR - Error processing Objective Definition output: Missing required field: primary_objective
+2025-11-02 04:52:58,586 - ai_agent.src.agents.base.osint_agent.Objective Definition Agent for Aging Research - INFO - Successfully completed execution in 0.32s
+2025-11-02 04:52:58,586 - __main__ - INFO - Objectives defined: Default primary objective
+2025-11-02 04:52:58,586 - __main__ - INFO - Compliance validation passed
+2025-11-02 04:52:58,587 - __main__ - INFO - Starting strategy formulation phase
+2025-11-02 04:52:58,587 - ai_agent.src.agents.base.osint_agent.Strategy Formulation Agent for Aging Research - INFO - Starting execution for Strategy Formulation Agent for Aging Research agent
+2025-11-02 04:52:59,046 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-11-02 04:52:59,047 - ai_agent.src.agents.base.osint_agent.Strategy Formulation Agent for Aging Research - WARNING - LLM API unavailable or incompatible response: Error code: 401 - {'error': {'message': 'Incorrect API key provided: default-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}. Using local fallback.
+2025-11-02 04:52:59,047 - ai_agent.src.agents.base.osint_agent.Strategy Formulation Agent for Aging Research - ERROR - Error processing Strategy Formulation output: Missing required field: strategy_name
+2025-11-02 04:52:59,047 - ai_agent.src.agents.base.osint_agent.Strategy Formulation Agent for Aging Research - INFO - Successfully completed execution in 0.46s
+2025-11-02 04:52:59,047 - __main__ - INFO - Strategy formulated: Default Strategy
+2025-11-02 04:52:59,047 - __main__ - INFO - Risk assessment completed and validated
+2025-11-02 04:52:59,047 - __main__ - INFO - Starting data collection planning phase
+2025-11-02 04:52:59,048 - ai_agent.src.agents.base.osint_agent.Data Collection Agent for Aging Research - INFO - Starting execution for Data Collection Agent for Aging Research agent
+2025-11-02 04:52:59,344 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-11-02 04:52:59,345 - ai_agent.src.agents.base.osint_agent.Data Collection Agent for Aging Research - WARNING - LLM API unavailable or incompatible response: Error code: 401 - {'error': {'message': 'Incorrect API key provided: default-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}. Using local fallback.
+2025-11-02 04:52:59,346 - ai_agent.src.agents.base.osint_agent.Data Collection Agent for Aging Research - ERROR - Error processing Data Collection output: Missing required field: sources_to_query
+2025-11-02 04:52:59,346 - ai_agent.src.agents.base.osint_agent.Data Collection Agent for Aging Research - INFO - Successfully completed execution in 0.30s
+2025-11-02 04:52:59,346 - __main__ - INFO - Collection plan created for 1 sources
+2025-11-02 04:52:59,346 - __main__ - INFO - Starting data collection execution
+2025-11-02 04:52:59,346 - ai_agent.src.agents.base.osint_agent.Data Collection Agent for Aging Research - INFO - Starting data collection based on plan for sources: ['default_source']
+2025-11-02 04:53:00,347 - ai_agent.src.agents.base.osint_agent.Data Collection Agent for Aging Research - INFO - Data collection completed for sources: ['default_source']
+2025-11-02 04:53:00,347 - __main__ - INFO - Data collection completed with status: completed
+2025-11-02 04:53:00,347 - __main__ - INFO - Accessed 1 sources
+2025-11-02 04:53:00,347 - __main__ - INFO - Collected 0 data samples
+2025-11-02 04:53:00,347 - __main__ - INFO - Quality validation completed and passed
+2025-11-02 04:53:00,348 - __main__ - INFO - Results saved to: ai_agent/outputs/reports/aging_research_report_20251102_045300.json
+2025-11-02 04:53:00,348 - __main__ - INFO - Audit trail saved to: ai_agent/outputs/audit_trail/aging_research_audit_trail_20251102_045300.json
+2025-11-02 04:53:00,348 - __main__ - INFO - Summary saved to: ai_agent/outputs/reports/aging_research_summary_20251102_045300.json
