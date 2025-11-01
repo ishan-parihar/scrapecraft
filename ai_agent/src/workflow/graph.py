@@ -29,6 +29,10 @@ from ..agents.collection.dark_web_collector import DarkWebCollectorAgent
 from ..agents.synthesis.intelligence_synthesis_agent import IntelligenceSynthesisAgent
 from ..agents.synthesis.quality_assurance_agent import QualityAssuranceAgent
 from ..agents.synthesis.report_generation_agent import ReportGenerationAgent
+from ..agents.analysis.data_fusion_agent import DataFusionAgent
+from ..agents.analysis.pattern_recognition_agent import PatternRecognitionAgent
+from ..agents.analysis.contextual_analysis_agent import ContextualAnalysisAgent
+from ..agents.base.osint_agent import AgentConfig
 
 
 logger = logging.getLogger(__name__)
@@ -524,54 +528,90 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
     except Exception as e:
         return add_error(state, str(e), InvestigationPhase.COLLECTION, "data_collection_node")
 
-
 async def data_fusion_node(state: InvestigationState) -> InvestigationState:
-    """Fuse and correlate data from multiple sources."""
-    try:
-        # Mock data fusion results
-        state["fused_data"] = {
-            "entities": [
-                {"name": "Test Entity", "type": "organization", "confidence": 0.9}
-            ],
-            "relationships": [
-                {"source": "Entity A", "target": "Entity B", "type": "association", "confidence": 0.8}
-            ],
-            "timeline": [
-                {"date": "2024-01-01", "event": "Event 1", "sources": ["web", "social"]}
-            ],
-            "geospatial": [
-                {"location": "Test Location", "coordinates": [0, 0], "relevance": 0.7}
-            ]
-        }
-        
-        state["analysis_status"]["data_fusion"] = InvestigationStatus.COMPLETED
-        
-        return state
-        
-    except Exception as e:
-        return add_error(state, str(e), InvestigationPhase.ANALYSIS, "data_fusion_node")
+     """Fuse and correlate data from multiple sources."""
+     try:
+         config = AgentConfig(
+             agent_id="data_fusion_agent",
+             role="Data Fusion Agent",
+             description="Agent responsible for fusing and integrating data from multiple sources"
+         )
+         agent = DataFusionAgent(config=config)
+         
+         # Prepare input data for data fusion
+         fusion_input = {
+             "search_results": state.get("search_results", {}),
+             "raw_data": state.get("raw_data", {}),
+             "sources_used": state.get("sources_used", []),
+             "user_request": state.get("user_request", ""),
+             "objectives": state.get("objectives", {})
+         }
+         
+         # Execute data fusion
+         result = await agent.execute(fusion_input)
+         
+         if result.success:
+             state["fused_data"] = result.data
+             state["agents_participated"].append("DataFusionAgent")
+             state["confidence_level"] = max(state["confidence_level"], result.confidence)
+             state["analysis_status"]["data_fusion"] = InvestigationStatus.COMPLETED
+         else:
+             error_msg = result.error_message if result.error_message else "Data fusion failed"
+             state = add_error(state, error_msg, InvestigationPhase.ANALYSIS, "DataFusionAgent")
+         
+         return state
+         
+     except Exception as e:
+         return add_error(state, str(e), InvestigationPhase.ANALYSIS, "data_fusion_node")
 
 
 async def pattern_recognition_node(state: InvestigationState) -> InvestigationState:
     """Recognize patterns and anomalies in the fused data."""
     try:
-        # Mock pattern recognition results
-        state["patterns"] = [
-            {
-                "type": "temporal_pattern",
-                "description": "Recurring activity pattern detected",
-                "confidence": 0.8,
-                "significance": "medium"
-            },
-            {
-                "type": "network_pattern",
-                "description": "Connection cluster identified",
-                "confidence": 0.9,
-                "significance": "high"
-            }
-        ]
+        config = AgentConfig(
+            agent_id="pattern_recognition_agent",
+            role="Pattern Recognition Agent",
+            description="Agent responsible for recognizing patterns in OSINT data"
+        )
+        agent = PatternRecognitionAgent(config=config)
         
-        state["analysis_status"]["pattern_recognition"] = InvestigationStatus.COMPLETED
+        # Prepare input data for pattern recognition
+        pattern_input = {
+            "task_type": "behavioral_patterns",
+            "fused_data": state.get("fused_data", {}),
+            "search_results": state.get("search_results", {}),
+            "user_request": state.get("user_request", ""),
+            "objectives": state.get("objectives", {})
+        }
+        
+        # Execute pattern recognition
+        result = await agent.execute(pattern_input)
+        
+        if result.success:
+            # Extract patterns from the result, handling different possible return structures
+            if isinstance(result.data, dict) and "results" in result.data:
+                # If results is a list of dicts, extract the patterns from each
+                raw_patterns = result.data["results"]
+                all_patterns = []
+                for result_item in raw_patterns:
+                    if isinstance(result_item, dict) and "results" in result_item:
+                        if isinstance(result_item["results"], list):
+                            all_patterns.extend(result_item["results"])
+                        else:
+                            all_patterns.append(result_item["results"])
+                state["patterns"] = all_patterns
+            elif isinstance(result.data, list):
+                state["patterns"] = result.data
+            else:
+                # If it's a single result, wrap it in a list
+                state["patterns"] = [result.data] if result.data else []
+            
+            state["agents_participated"].append("PatternRecognitionAgent")
+            state["confidence_level"] = max(state["confidence_level"], result.confidence)
+            state["analysis_status"]["pattern_recognition"] = InvestigationStatus.COMPLETED
+        else:
+            error_msg = result.error_message if result.error_message else "Pattern recognition failed"
+            state = add_error(state, error_msg, InvestigationPhase.ANALYSIS, "PatternRecognitionAgent")
         
         return state
         
@@ -582,20 +622,48 @@ async def pattern_recognition_node(state: InvestigationState) -> InvestigationSt
 async def contextual_analysis_node(state: InvestigationState) -> InvestigationState:
     """Perform contextual analysis of the data and patterns."""
     try:
-        # Mock contextual analysis results
-        state["context_analysis"] = {
-            "historical_context": "Historical background information",
-            "cultural_context": "Cultural factors and considerations",
-            "geopolitical_context": "Geopolitical implications",
-            "technical_context": "Technical domain analysis",
-            "risk_assessment": {
-                "overall_risk": "medium",
-                "risk_factors": ["factor1", "factor2"],
-                "mitigation_strategies": ["strategy1", "strategy2"]
-            }
+        config = AgentConfig(
+            agent_id="contextual_analysis_agent",
+            role="Contextual Analysis Agent",
+            description="Agent responsible for providing contextual analysis of OSINT data"
+        )
+        agent = ContextualAnalysisAgent(config=config)
+        
+        # Prepare input data for contextual analysis
+        context_input = {
+            "task_type": "situational_awareness",
+            "fused_data": state.get("fused_data", {}),
+            "patterns": state.get("patterns", []),
+            "search_results": state.get("search_results", {}),
+            "user_request": state.get("user_request", ""),
+            "objectives": state.get("objectives", {})
         }
         
-        state["analysis_status"]["contextual_analysis"] = InvestigationStatus.COMPLETED
+        # Execute contextual analysis
+        result = await agent.execute(context_input)
+        
+        if result.success:
+            # Extract context analysis from the result, handling different possible return structures
+            if isinstance(result.data, dict) and "results" in result.data:
+                # If results is a list of dicts, take the first set of results
+                raw_results = result.data["results"]
+                if isinstance(raw_results, list) and len(raw_results) > 0:
+                    # Take the first result if it has the context data
+                    state["context_analysis"] = raw_results[0] if isinstance(raw_results[0], dict) else {"analysis": raw_results[0]}
+                else:
+                    state["context_analysis"] = {"analysis": raw_results if isinstance(raw_results, dict) else {}}
+            elif isinstance(result.data, dict):
+                state["context_analysis"] = result.data
+            else:
+                # If it's not a dict, wrap it in a dictionary
+                state["context_analysis"] = {"analysis": result.data}
+            
+            state["agents_participated"].append("ContextualAnalysisAgent")
+            state["confidence_level"] = max(state["confidence_level"], result.confidence)
+            state["analysis_status"]["contextual_analysis"] = InvestigationStatus.COMPLETED
+        else:
+            error_msg = result.error_message if result.error_message else "Contextual analysis failed"
+            state = add_error(state, error_msg, InvestigationPhase.ANALYSIS, "ContextualAnalysisAgent")
         
         return state
         

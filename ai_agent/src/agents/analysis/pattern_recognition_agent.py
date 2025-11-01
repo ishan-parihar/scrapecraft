@@ -8,8 +8,9 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 import re
 import json
+import logging
 
-from ..base.osint_agent import OSINTAgent
+from ..base.osint_agent import OSINTAgent, AgentConfig
 
 
 class PatternRecognitionAgent(OSINTAgent):
@@ -18,8 +19,17 @@ class PatternRecognitionAgent(OSINTAgent):
     Handles behavioral patterns, communication patterns, network patterns, and anomaly detection.
     """
     
-    def __init__(self, agent_id: str = "pattern_recognition_agent"):
-        super().__init__(agent_id, "Pattern Recognition Agent")
+    def __init__(self, config: AgentConfig, tools: Optional[List[Any]] = None, memory: Optional[Any] = None, logger: Optional[logging.Logger] = None):
+        # Initialize with default config if not provided
+        if not config:
+            config = AgentConfig(
+                agent_id="pattern_recognition_agent",
+                role="Pattern Recognition Agent",
+                description="Agent responsible for recognizing patterns in OSINT data"
+            )
+        
+        super().__init__(config=config, tools=tools, memory=memory, logger=logger)
+        
         self.supported_pattern_types = [
             "behavioral", "communication", "network", "temporal", 
             "linguistic", "geographical", "financial", "technical"
@@ -30,7 +40,7 @@ class PatternRecognitionAgent(OSINTAgent):
     async def detect_behavioral_patterns(
         self, 
         entities: List[Dict[str, Any]],
-        pattern_types: List[str] = None
+        pattern_types: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Detect behavioral patterns in entity activities.
@@ -45,7 +55,7 @@ class PatternRecognitionAgent(OSINTAgent):
         if pattern_types is None:
             pattern_types = ["routine", "anomalous", "coordinated", "escalating"]
             
-        self.log_activity(f"Detecting behavioral patterns for {len(entities)} entities")
+        self.logger.info(f"Detecting behavioral patterns for {len(entities)} entities")
         
         try:
             detected_patterns = []
@@ -71,11 +81,11 @@ class PatternRecognitionAgent(OSINTAgent):
                 "analysis_success": True
             }
             
-            self.log_activity(f"Behavioral pattern analysis completed, {len(detected_patterns)} patterns found")
+            self.logger.info(f"Behavioral pattern analysis completed, {len(detected_patterns)} patterns found")
             return analysis_data
             
         except Exception as e:
-            self.log_activity(f"Error in behavioral pattern detection: {str(e)}", level="error")
+            self.logger.error(f"Error in behavioral pattern detection: {str(e)}")
             return {
                 "error": str(e),
                 "source": "behavioral_pattern_detection",
@@ -97,7 +107,7 @@ class PatternRecognitionAgent(OSINTAgent):
         Returns:
             Dictionary containing communication pattern analysis
         """
-        self.log_activity(f"Analyzing communication patterns for {len(communications)} communications")
+        self.logger.info(f"Analyzing communication patterns for {len(communications)} communications")
         
         try:
             # Temporal patterns
@@ -141,11 +151,11 @@ class PatternRecognitionAgent(OSINTAgent):
                 "analysis_success": True
             }
             
-            self.log_activity(f"Communication pattern analysis completed, {len(combined_patterns)} patterns identified")
+            self.logger.info(f"Communication pattern analysis completed, {len(combined_patterns)} patterns identified")
             return analysis_data
             
         except Exception as e:
-            self.log_activity(f"Error in communication pattern detection: {str(e)}", level="error")
+            self.logger.error(f"Error in communication pattern detection: {str(e)}")
             return {
                 "error": str(e),
                 "source": "communication_pattern_detection",
@@ -155,7 +165,7 @@ class PatternRecognitionAgent(OSINTAgent):
     async def detect_network_patterns(
         self, 
         network_data: Dict[str, Any],
-        pattern_categories: List[str] = None
+        pattern_categories: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Detect patterns in network structure and dynamics.
@@ -170,7 +180,7 @@ class PatternRecognitionAgent(OSINTAgent):
         if pattern_categories is None:
             pattern_categories = ["structural", "temporal", "influence", "community"]
             
-        self.log_activity(f"Analyzing network patterns for {pattern_categories}")
+        self.logger.info(f"Analyzing network patterns for {pattern_categories}")
         
         try:
             detected_patterns = []
@@ -212,11 +222,11 @@ class PatternRecognitionAgent(OSINTAgent):
                 "analysis_success": True
             }
             
-            self.log_activity(f"Network pattern analysis completed, {len(detected_patterns)} patterns found")
+            self.logger.info(f"Network pattern analysis completed, {len(detected_patterns)} patterns found")
             return analysis_data
             
         except Exception as e:
-            self.log_activity(f"Error in network pattern detection: {str(e)}", level="error")
+            self.logger.error(f"Error in network pattern detection: {str(e)}")
             return {
                 "error": str(e),
                 "source": "network_pattern_detection",
@@ -226,7 +236,7 @@ class PatternRecognitionAgent(OSINTAgent):
     async def detect_anomalies(
         self, 
         data: List[Dict[str, Any]],
-        anomaly_types: List[str] = None,
+        anomaly_types: Optional[List[str]] = None,
         sensitivity: float = 0.05
     ) -> Dict[str, Any]:
         """
@@ -243,7 +253,7 @@ class PatternRecognitionAgent(OSINTAgent):
         if anomaly_types is None:
             anomaly_types = ["statistical", "temporal", "structural", "behavioral"]
             
-        self.log_activity(f"Detecting anomalies with sensitivity {sensitivity}")
+        self.logger.info(f"Detecting anomalies with sensitivity {sensitivity}")
         
         try:
             detected_anomalies = []
@@ -274,11 +284,11 @@ class PatternRecognitionAgent(OSINTAgent):
                 "analysis_success": True
             }
             
-            self.log_activity(f"Anomaly detection completed, {len(detected_anomalies)} anomalies found")
+            self.logger.info(f"Anomaly detection completed, {len(detected_anomalies)} anomalies found")
             return analysis_data
             
         except Exception as e:
-            self.log_activity(f"Error in anomaly detection: {str(e)}", level="error")
+            self.logger.error(f"Error in anomaly detection: {str(e)}")
             return {
                 "error": str(e),
                 "source": "anomaly_detection",
@@ -336,7 +346,7 @@ class PatternRecognitionAgent(OSINTAgent):
                 results.append(result)
         
         return {
-            "agent_id": self.agent_id,
+            "agent_id": self.config.agent_id,
             "task_type": task_type,
             "timestamp": time.time(),
             "results": results,
@@ -480,11 +490,20 @@ class PatternRecognitionAgent(OSINTAgent):
         pattern_types = [p["type"] for p in patterns]
         type_counts = {ptype: pattern_types.count(ptype) for ptype in set(pattern_types)}
         
-        insights.append({
-            "type": "frequency_analysis",
-            "description": f"Most common pattern type: {max(type_counts, key=type_counts.get)}",
-            "details": type_counts
-        })
+        if type_counts:
+            # Find the pattern type with the highest count
+            most_common_type = max(type_counts.keys(), key=lambda k: type_counts[k])
+            insights.append({
+                "type": "frequency_analysis",
+                "description": f"Most common pattern type: {most_common_type}",
+                "details": type_counts
+            })
+        else:
+            insights.append({
+                "type": "frequency_analysis",
+                "description": "No pattern types detected",
+                "details": type_counts
+            })
         
         # Confidence distribution
         high_confidence = len([p for p in patterns if p.get("confidence", 0) > 0.8])
@@ -895,3 +914,48 @@ class PatternRecognitionAgent(OSINTAgent):
         """Estimate investigation complexity."""
         # Simulate complexity estimation
         return "medium"  # Could be "low", "medium", or "high"
+
+    def _get_system_prompt(self) -> str:
+        """
+        Get the system prompt for this agent.
+        """
+        return f"""
+        You are a {self.config.role}, specialized in identifying patterns in OSINT data.
+        Your role is to analyze data and detect behavioral patterns, communication patterns,
+        network patterns, and anomalies in the provided information.
+        Use statistical analysis, trend identification, and correlation detection to find meaningful patterns.
+        Always provide confidence scores and explain the significance of detected patterns.
+        """
+
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
+        """
+        Process and structure the raw output from the agent.
+        """
+        # For this implementation, we're already returning structured data from our methods
+        # This is a fallback in case raw text needs to be processed
+        try:
+            # If raw_output is already a JSON string, parse it
+            if isinstance(raw_output, str) and raw_output.strip().startswith('{'):
+                return json.loads(raw_output)
+            else:
+                # If it's already a dictionary, return it
+                if isinstance(raw_output, dict):
+                    return raw_output
+                else:
+                    # Return as a simple response
+                    return {
+                        "response": str(raw_output),
+                        "processed_at": datetime.utcnow().isoformat()
+                    }
+        except json.JSONDecodeError:
+            return {
+                "response": str(raw_output),
+                "processed_at": datetime.utcnow().isoformat()
+            }
+
+    def validate_input(self, input_data: Dict[str, Any]) -> bool:
+        """
+        Validate input data before execution.
+        """
+        required_fields = ["task_type"]
+        return all(field in input_data for field in required_fields)

@@ -7,8 +7,9 @@ import time
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 import json
+import logging
 
-from ..base.osint_agent import OSINTAgent
+from ..base.osint_agent import OSINTAgent, AgentConfig
 
 
 class ContextualAnalysisAgent(OSINTAgent):
@@ -17,8 +18,17 @@ class ContextualAnalysisAgent(OSINTAgent):
     Handles threat assessment, risk evaluation, situational awareness, and contextual interpretation.
     """
     
-    def __init__(self, agent_id: str = "contextual_analysis_agent"):
-        super().__init__(agent_id, "Contextual Analysis Agent")
+    def __init__(self, config: AgentConfig, tools: Optional[List[Any]] = None, memory: Optional[Any] = None, logger: Optional[logging.Logger] = None):
+        # Initialize with default config if not provided
+        if not config:
+            config = AgentConfig(
+                agent_id="contextual_analysis_agent",
+                role="Contextual Analysis Agent",
+                description="Agent responsible for providing contextual analysis of OSINT data"
+            )
+        
+        super().__init__(config=config, tools=tools, memory=memory, logger=logger)
+        
         self.supported_analysis_types = [
             "threat_assessment", "risk_evaluation", "situational_awareness",
             "geopolitical_context", "operational_context", "technical_context"
@@ -28,7 +38,7 @@ class ContextualAnalysisAgent(OSINTAgent):
     async def assess_threat_level(
         self, 
         entities: List[Dict[str, Any]],
-        threat_indicators: List[str] = None,
+        threat_indicators: Optional[List[str]] = None,
         context_framework: str = "standard"
     ) -> Dict[str, Any]:
         """
@@ -45,7 +55,7 @@ class ContextualAnalysisAgent(OSINTAgent):
         if threat_indicators is None:
             threat_indicators = ["capability", "intent", "opportunity", "history"]
             
-        self.log_activity(f"Assessing threat levels for {len(entities)} entities")
+        self.logger.info(f"Assessing threat levels for {len(entities)} entities")
         
         try:
             threat_assessments = []
@@ -76,11 +86,11 @@ class ContextualAnalysisAgent(OSINTAgent):
                 "assessment_success": True
             }
             
-            self.log_activity(f"Threat assessment completed, landscape level: {threat_landscape.get('overall_level', 'unknown')}")
+            self.logger.info(f"Threat assessment completed, landscape level: {threat_landscape.get('overall_level', 'unknown')}")
             return assessment_data
             
         except Exception as e:
-            self.log_activity(f"Error in threat assessment: {str(e)}", level="error")
+            self.logger.error(f"Error in threat assessment: {str(e)}")
             return {
                 "error": str(e),
                 "source": "threat_assessment",
@@ -90,7 +100,7 @@ class ContextualAnalysisAgent(OSINTAgent):
     async def evaluate_risk_factors(
         self, 
         scenarios: List[Dict[str, Any]],
-        risk_categories: List[str] = None,
+        risk_categories: Optional[List[str]] = None,
         time_horizon: str = "30d"
     ) -> Dict[str, Any]:
         """
@@ -107,7 +117,7 @@ class ContextualAnalysisAgent(OSINTAgent):
         if risk_categories is None:
             risk_categories = ["operational", "security", "financial", "reputational", "legal"]
             
-        self.log_activity(f"Evaluating risk factors for {len(scenarios)} scenarios")
+        self.logger.info(f"Evaluating risk factors for {len(scenarios)} scenarios")
         
         try:
             risk_assessments = []
@@ -138,11 +148,11 @@ class ContextualAnalysisAgent(OSINTAgent):
                 "evaluation_success": True
             }
             
-            self.log_activity(f"Risk evaluation completed, {len(priority_risks)} priority risks identified")
+            self.logger.info(f"Risk evaluation completed, {len(priority_risks)} priority risks identified")
             return evaluation_data
             
         except Exception as e:
-            self.log_activity(f"Error in risk evaluation: {str(e)}", level="error")
+            self.logger.error(f"Error in risk evaluation: {str(e)}")
             return {
                 "error": str(e),
                 "source": "risk_evaluation",
@@ -166,7 +176,7 @@ class ContextualAnalysisAgent(OSINTAgent):
         Returns:
             Dictionary containing situational awareness results
         """
-        self.log_activity(f"Providing {awareness_level} situational awareness")
+        self.logger.info(f"Providing {awareness_level} situational awareness")
         
         try:
             # Process intelligence data
@@ -197,11 +207,11 @@ class ContextualAnalysisAgent(OSINTAgent):
                 "awareness_success": True
             }
             
-            self.log_activity(f"Situational awareness generated, {len(briefings)} briefings created")
+            self.logger.info(f"Situational awareness generated, {len(briefings)} briefings created")
             return awareness_data
             
         except Exception as e:
-            self.log_activity(f"Error in situational awareness: {str(e)}", level="error")
+            self.logger.error(f"Error in situational awareness: {str(e)}")
             return {
                 "error": str(e),
                 "source": "situational_awareness",
@@ -211,7 +221,7 @@ class ContextualAnalysisAgent(OSINTAgent):
     async def analyze_geopolitical_context(
         self, 
         intelligence_data: Dict[str, Any],
-        regions: List[str] = None,
+        regions: Optional[List[str]] = None,
         analysis_depth: str = "comprehensive"
     ) -> Dict[str, Any]:
         """
@@ -228,7 +238,7 @@ class ContextualAnalysisAgent(OSINTAgent):
         if regions is None:
             regions = ["global", "regional", "national"]
             
-        self.log_activity(f"Analyzing geopolitical context for {len(regions)} regions")
+        self.logger.info(f"Analyzing geopolitical context for {len(regions)} regions")
         
         try:
             geopolitical_analysis = []
@@ -258,11 +268,11 @@ class ContextualAnalysisAgent(OSINTAgent):
                 "analysis_success": True
             }
             
-            self.log_activity(f"Geopolitical analysis completed, {len(implications)} implications identified")
+            self.logger.info(f"Geopolitical analysis completed, {len(implications)} implications identified")
             return analysis_data
             
         except Exception as e:
-            self.log_activity(f"Error in geopolitical analysis: {str(e)}", level="error")
+            self.logger.error(f"Error in geopolitical analysis: {str(e)}")
             return {
                 "error": str(e),
                 "source": "geopolitical_analysis",
@@ -323,7 +333,7 @@ class ContextualAnalysisAgent(OSINTAgent):
                 results.append(result)
         
         return {
-            "agent_id": self.agent_id,
+            "agent_id": self.config.agent_id,
             "task_type": task_type,
             "timestamp": time.time(),
             "results": results,
@@ -780,3 +790,49 @@ class ContextualAnalysisAgent(OSINTAgent):
         })
         
         return insights
+
+    def _get_system_prompt(self) -> str:
+        """
+        Get the system prompt for this agent.
+        """
+        return f"""
+        You are a {self.config.role}, specialized in providing contextual analysis of OSINT data.
+        Your role is to assess threats, evaluate risks, provide situational awareness,
+        and analyze geopolitical contexts to support intelligence decision-making.
+        Use structured analysis frameworks, risk assessment methodologies, and contextual
+        interpretation techniques to provide actionable intelligence assessments.
+        Always provide confidence scores, risk levels, and actionable recommendations.
+        """
+
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
+        """
+        Process and structure the raw output from the agent.
+        """
+        # For this implementation, we're already returning structured data from our methods
+        # This is a fallback in case raw text needs to be processed
+        try:
+            # If raw_output is already a JSON string, parse it
+            if isinstance(raw_output, str) and raw_output.strip().startswith('{'):
+                return json.loads(raw_output)
+            else:
+                # If it's already a dictionary, return it
+                if isinstance(raw_output, dict):
+                    return raw_output
+                else:
+                    # Return as a simple response
+                    return {
+                        "response": str(raw_output),
+                        "processed_at": datetime.utcnow().isoformat()
+                    }
+        except json.JSONDecodeError:
+            return {
+                "response": str(raw_output),
+                "processed_at": datetime.utcnow().isoformat()
+            }
+
+    def validate_input(self, input_data: Dict[str, Any]) -> bool:
+        """
+        Validate input data before execution.
+        """
+        required_fields = ["task_type"]
+        return all(field in input_data for field in required_fields)

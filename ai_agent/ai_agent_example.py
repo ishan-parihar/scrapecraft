@@ -103,6 +103,7 @@ class ScrapingMonitor:
         runtime = datetime.now() - self.stats["start_time"]
         return {
             **self.stats,
+            "start_time": self.stats["start_time"].isoformat(),  # Convert datetime to string
             "runtime_hours": runtime.total_seconds() / 3600,
             "success_rate": (
                 self.stats["successful_scrapes"] / max(self.stats["total_requests"], 1)

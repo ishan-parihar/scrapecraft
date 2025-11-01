@@ -6,3 +6,6 @@
 /backend/app/__pycache__
 /backend/app/models/__pycache__
 /backend/app/services/__pycache__
+/ai_agent/src/agents/analysis/__pycache__
+/ai_agent/__pycache__
+/ai_agent/src/workflow/__pycache__

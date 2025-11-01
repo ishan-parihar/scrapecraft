@@ -4,12 +4,13 @@ Data Fusion Agent for OSINT investigations.
 
 import asyncio
 import time
+import logging
 from typing import Dict, List, Any, Optional, Set
 from datetime import datetime
 import json
 import hashlib
 
-from ..base.osint_agent import OSINTAgent
+from ..base.osint_agent import OSINTAgent, AgentConfig
 
 
 class DataFusionAgent(OSINTAgent):
@@ -18,8 +19,18 @@ class DataFusionAgent(OSINTAgent):
     Handles data deduplication, normalization, correlation, and enrichment.
     """
     
-    def __init__(self, agent_id: str = "data_fusion_agent"):
-        super().__init__(agent_id, "Data Fusion Agent")
+    def __init__(self, config: Optional[AgentConfig] = None, tools: Optional[List[Any]] = None, memory: Optional[Any] = None, logger: Optional[logging.Logger] = None):
+        # Initialize with default config if not provided
+        if not config:
+            config = AgentConfig(
+                agent_id="data_fusion_agent",
+                role="Data Fusion Agent",
+                description="Agent responsible for fusing and integrating data from multiple sources. Handles data deduplication, normalization, correlation, and enrichment."
+            )
+        
+        super().__init__(config=config, tools=tools, memory=memory, logger=logger)
+        
+        # Initialize specific attributes after parent initialization
         self.supported_data_types = [
             "profiles", "contacts", "organizations", "locations",
             "relationships", "activities", "documents", "media"
@@ -30,6 +41,32 @@ class DataFusionAgent(OSINTAgent):
             "low": 0.4
         }
         
+    def _get_system_prompt(self) -> str:
+        """Get the system prompt for this agent."""
+        return """
+        You are a Data Fusion Agent, a specialized AI assistant for OSINT investigations.
+        Your role is to fuse and integrate data from multiple sources, handling data deduplication,
+        normalization, correlation, and enrichment. Follow the user's instructions carefully
+        and provide accurate, structured data fusion results while maintaining ethical standards.
+        """
+    
+    def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
+        """Process and structure the raw output from the agent."""
+        try:
+            # Try to parse as JSON first
+            if raw_output.strip().startswith('{') or raw_output.strip().startswith('['):
+                return json.loads(raw_output)
+            else:
+                # If not JSON, return as a simple response
+                return {"response": raw_output, "processed_at": datetime.utcnow().isoformat()}
+        except json.JSONDecodeError:
+            return {"response": raw_output, "processed_at": datetime.utcnow().isoformat()}
+    
+    def validate_input(self, input_data: Dict[str, Any]) -> bool:
+        """Validate input data before execution."""
+        required_fields = ["task_type"]
+        return all(field in input_data for field in required_fields)
+
     async def fuse_collection_data(
         self, 
         collection_results: List[Dict[str, Any]],
@@ -45,7 +82,7 @@ class DataFusionAgent(OSINTAgent):
         Returns:
             Dictionary containing fused data
         """
-        self.log_activity(f"Fusing data from {len(collection_results)} sources using {fusion_strategy} strategy")
+        self.logger.info(f"Fusing data from {len(collection_results)} sources using {fusion_strategy} strategy")
         
         try:
             # Extract and categorize data
@@ -76,11 +113,11 @@ class DataFusionAgent(OSINTAgent):
                 "processing_success": True
             }
             
-            self.log_activity(f"Data fusion completed, processed {len(scored_data.get('entities', []))} entities")
+            self.logger.info(f"Data fusion completed, processed {len(scored_data.get('entities', []))} entities")
             return collection_data
             
         except Exception as e:
-            self.log_activity(f"Error in data fusion: {str(e)}", level="error")
+            self.logger.error(f"Error in data fusion: {str(e)}")
             return {
                 "error": str(e),
                 "source": "data_fusion",
@@ -102,7 +139,7 @@ class DataFusionAgent(OSINTAgent):
         Returns:
             Dictionary containing resolved entity
         """
-        self.log_activity(f"Resolving conflicts for {len(conflicting_entities)} entity versions")
+        self.logger.info(f"Resolving conflicts for {len(conflicting_entities)} entity versions")
         
         try:
             resolved_entity = await self._apply_conflict_resolution(conflicting_entities, resolution_strategy)
@@ -121,11 +158,11 @@ class DataFusionAgent(OSINTAgent):
                 "resolution_success": True
             }
             
-            self.log_activity(f"Entity conflict resolution completed")
+            self.logger.info(f"Entity conflict resolution completed")
             return resolution_data
             
         except Exception as e:
-            self.log_activity(f"Error in entity conflict resolution: {str(e)}", level="error")
+            self.logger.error(f"Error in entity conflict resolution: {str(e)}")
             return {
                 "error": str(e),
                 "source": "entity_conflict_resolution",
@@ -135,7 +172,7 @@ class DataFusionAgent(OSINTAgent):
     async def build_relationship_graph(
         self, 
         entities: List[Dict[str, Any]],
-        relationship_types: List[str] = None
+        relationship_types: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Build a relationship graph from fused entities.
@@ -150,7 +187,7 @@ class DataFusionAgent(OSINTAgent):
         if relationship_types is None:
             relationship_types = ["personal", "professional", "organizational", "temporal", "geographical"]
             
-        self.log_activity(f"Building relationship graph for {len(entities)} entities")
+        self.logger.info(f"Building relationship graph for {len(entities)} entities")
         
         try:
             # Identify relationships
@@ -177,11 +214,11 @@ class DataFusionAgent(OSINTAgent):
                 "construction_success": True
             }
             
-            self.log_activity(f"Relationship graph built with {len(relationships)} connections")
+            self.logger.info(f"Relationship graph built with {len(relationships)} connections")
             return graph_data
             
         except Exception as e:
-            self.log_activity(f"Error building relationship graph: {str(e)}", level="error")
+            self.logger.error(f"Error building relationship graph: {str(e)}")
             return {
                 "error": str(e),
                 "source": "relationship_graph",
@@ -203,7 +240,7 @@ class DataFusionAgent(OSINTAgent):
         Returns:
             Dictionary containing temporal analysis
         """
-        self.log_activity(f"Creating temporal analysis for {len(entities)} entities over {time_window}")
+        self.logger.info(f"Creating temporal analysis for {len(entities)} entities over {time_window}")
         
         try:
             # Extract timeline data
@@ -230,11 +267,11 @@ class DataFusionAgent(OSINTAgent):
                 "analysis_success": True
             }
             
-            self.log_activity(f"Temporal analysis completed with {len(temporal_patterns)} patterns identified")
+            self.logger.info(f"Temporal analysis completed with {len(temporal_patterns)} patterns identified")
             return temporal_data
             
         except Exception as e:
-            self.log_activity(f"Error in temporal analysis: {str(e)}", level="error")
+            self.logger.error(f"Error in temporal analysis: {str(e)}")
             return {
                 "error": str(e),
                 "source": "temporal_analysis",
@@ -291,7 +328,7 @@ class DataFusionAgent(OSINTAgent):
                 results.append(result)
         
         return {
-            "agent_id": self.agent_id,
+            "agent_id": self.config.agent_id,
             "task_type": task_type,
             "timestamp": time.time(),
             "results": results,
