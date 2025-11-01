@@ -219,6 +219,7 @@ def research(topic: Optional[str], intensity: str, output: str, project: Optiona
     with open(config_path, 'w') as f:
         json.dump(config_data, f, indent=2)
     
+    osint_os = None
     try:
         # Import OSINTOperatingSystem only when needed to avoid circular imports
         from osint_os import OSINTOperatingSystem
@@ -274,7 +275,7 @@ def research(topic: Optional[str], intensity: str, output: str, project: Optiona
         
     except KeyboardInterrupt:
         click.echo("\nInvestigation interrupted by user")
-        if 'osint_os' in locals() and osint_os.state:
+        if osint_os and hasattr(osint_os, 'state') and osint_os.state:
             save_path = project_path / 'outputs' / f'state_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
             osint_os.save_state(str(save_path))
             click.echo(f"Current state saved to: {save_path}")
