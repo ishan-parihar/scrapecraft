@@ -49,9 +49,34 @@ class OSINTWorkflow:
         self.config = config or {}
         self.logger = logging.getLogger(f"{__name__}.OSINTWorkflow")
         
-        # Initialize agents
-        from ..utils.tools.scrapegraph_integration import get_global_tool_manager
+         # Initialize agents
+        # Using dynamic import to avoid import issues
+        import importlib.util
+        import os
+        tool_module_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils', 'tools', 'scrapegraph_integration.py')
+        spec = importlib.util.spec_from_file_location("scrapegraph_integration", tool_module_path)
+        if spec is not None and spec.loader is not None:
+            tool_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(tool_module)
+            get_global_tool_manager = tool_module.get_global_tool_manager
+        else:
+            raise ImportError("Could not load scraping tools module")
         tool_manager = get_global_tool_manager()
+        
+        # Initialize AI backend bridge for state synchronization
+        # Using dynamic import to avoid import issues
+        import importlib.util
+        import os
+        bridge_module_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils', 'bridge', 'ai_backend_bridge.py')
+        spec = importlib.util.spec_from_file_location("ai_backend_bridge", bridge_module_path)
+        if spec is not None and spec.loader is not None:
+            bridge_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(bridge_module)
+            get_global_ai_bridge = bridge_module.get_global_ai_bridge
+        else:
+            raise ImportError("Could not load AI backend bridge module")
+        
+        self.ai_backend_bridge = get_global_ai_bridge()
         
         self.objective_agent = ObjectiveDefinitionAgent()
         self.strategy_agent = StrategyFormulationAgent()
@@ -95,6 +120,15 @@ class OSINTWorkflow:
         
         self.logger.info(f"Starting investigation: {state['investigation_id']}")
         
+        # Sync initial state with backend
+        try:
+            ai_backend_bridge = await self.ai_backend_bridge
+            sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+            if not sync_result.get("success", True):
+                self.logger.warning(f"State sync failed: {sync_result.get('error')}")
+        except Exception as e:
+            self.logger.warning(f"Could not sync investigation state with backend: {str(e)}")
+        
         try:
             # Phase 1: Planning
             state = await self._run_planning_phase(state)
@@ -117,6 +151,15 @@ class OSINTWorkflow:
             
             self.logger.info(f"Investigation completed: {state['investigation_id']}")
             
+            # Sync final state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Final state sync failed: {sync_result.get('error')}")
+            except Exception as sync_e:
+                self.logger.warning(f"Could not sync final investigation state with backend: {str(sync_e)}")
+            
         except Exception as e:
             self.logger.error(f"Investigation failed: {e}", exc_info=True)
             state = add_error(state, str(e))
@@ -125,6 +168,15 @@ class OSINTWorkflow:
                 InvestigationPhase.FAILED,
                 InvestigationStatus.FAILED
             )
+            
+            # Sync failed state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Failed state sync failed: {sync_result.get('error')}")
+            except Exception as sync_e:
+                self.logger.warning(f"Could not sync failed investigation state with backend: {str(sync_e)}")
         
         return state
     
@@ -139,6 +191,15 @@ class OSINTWorkflow:
                 InvestigationPhase.PLANNING,
                 InvestigationStatus.IN_PROGRESS
             )
+            
+            # Sync state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Planning phase state sync failed: {sync_result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Could not sync planning phase state with backend: {str(e)}")
             
             # Step 1: Define objectives
             state = await objective_definition_node(state)
@@ -157,6 +218,15 @@ class OSINTWorkflow:
             # Update progress percentage
             state["progress_percentage"] = calculate_progress(state)
             
+            # Sync state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Planning phase completion sync failed: {sync_result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Could not sync planning phase completion with backend: {str(e)}")
+            
             self.logger.info("Planning phase completed")
             
         except Exception as e:
@@ -167,6 +237,16 @@ class OSINTWorkflow:
                 InvestigationPhase.PLANNING,
                 InvestigationStatus.FAILED
             )
+            
+            # Sync failed state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Planning phase failure sync failed: {sync_result.get('error')}")
+            except Exception as sync_e:
+                self.logger.warning(f"Could not sync planning phase failure with backend: {str(sync_e)}")
+            
             raise
         
         return state
@@ -182,6 +262,15 @@ class OSINTWorkflow:
                 InvestigationPhase.COLLECTION,
                 InvestigationStatus.IN_PROGRESS
             )
+            
+            # Sync state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Collection phase state sync failed: {sync_result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Could not sync collection phase state with backend: {str(e)}")
             
             # Step 1: Coordinate search
             state = await search_coordination_node(state)
@@ -200,6 +289,15 @@ class OSINTWorkflow:
             # Update progress percentage
             state["progress_percentage"] = calculate_progress(state)
             
+            # Sync state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Collection phase completion sync failed: {sync_result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Could not sync collection phase completion with backend: {str(e)}")
+            
             self.logger.info("Collection phase completed")
             
         except Exception as e:
@@ -210,6 +308,16 @@ class OSINTWorkflow:
                 InvestigationPhase.COLLECTION,
                 InvestigationStatus.FAILED
             )
+            
+            # Sync failed state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Collection phase failure sync failed: {sync_result.get('error')}")
+            except Exception as sync_e:
+                self.logger.warning(f"Could not sync collection phase failure with backend: {str(sync_e)}")
+            
             raise
         
         return state
@@ -225,6 +333,15 @@ class OSINTWorkflow:
                 InvestigationPhase.ANALYSIS,
                 InvestigationStatus.IN_PROGRESS
             )
+            
+            # Sync state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Analysis phase state sync failed: {sync_result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Could not sync analysis phase state with backend: {str(e)}")
             
             # Step 1: Fuse data
             state = await data_fusion_node(state)
@@ -246,6 +363,15 @@ class OSINTWorkflow:
             # Update progress percentage
             state["progress_percentage"] = calculate_progress(state)
             
+            # Sync state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Analysis phase completion sync failed: {sync_result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Could not sync analysis phase completion with backend: {str(e)}")
+            
             self.logger.info("Analysis phase completed")
             
         except Exception as e:
@@ -256,6 +382,16 @@ class OSINTWorkflow:
                 InvestigationPhase.ANALYSIS,
                 InvestigationStatus.FAILED
             )
+            
+            # Sync failed state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Analysis phase failure sync failed: {sync_result.get('error')}")
+            except Exception as sync_e:
+                self.logger.warning(f"Could not sync analysis phase failure with backend: {str(sync_e)}")
+            
             raise
         
         return state
@@ -271,6 +407,15 @@ class OSINTWorkflow:
                 InvestigationPhase.SYNTHESIS,
                 InvestigationStatus.IN_PROGRESS
             )
+            
+            # Sync state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Synthesis phase state sync failed: {sync_result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Could not sync synthesis phase state with backend: {str(e)}")
             
             # Step 1: Synthesize intelligence
             state = await intelligence_synthesis_node(state)
@@ -292,6 +437,15 @@ class OSINTWorkflow:
             # Update progress percentage
             state["progress_percentage"] = calculate_progress(state)
             
+            # Sync state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Synthesis phase completion sync failed: {sync_result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Could not sync synthesis phase completion with backend: {str(e)}")
+            
             self.logger.info("Synthesis phase completed")
             
         except Exception as e:
@@ -302,6 +456,16 @@ class OSINTWorkflow:
                 InvestigationPhase.SYNTHESIS,
                 InvestigationStatus.FAILED
             )
+            
+            # Sync failed state with backend
+            try:
+                ai_backend_bridge = await self.ai_backend_bridge
+                sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                if not sync_result.get("success", True):
+                    self.logger.warning(f"Synthesis phase failure sync failed: {sync_result.get('error')}")
+            except Exception as sync_e:
+                self.logger.warning(f"Could not sync synthesis phase failure with backend: {str(sync_e)}")
+            
             raise
         
         return state
@@ -477,208 +641,273 @@ async def search_coordination_node(state: InvestigationState) -> InvestigationSt
         return add_error(state, str(e), InvestigationPhase.COLLECTION, "search_coordination_node")
 
 async def data_collection_node(state: InvestigationState) -> InvestigationState:
-    """Collect data from identified sources."""
-    try:
-        # Initialize collection agents with tools
-        from ..utils.tools.scrapegraph_integration import get_global_tool_manager
-        tool_manager = get_global_tool_manager()
-        
-        surface_web_agent = SurfaceWebCollectorAgent(tools=tool_manager.tools)
-        social_media_agent = SocialMediaCollectorAgent(tools=tool_manager.tools)
-        public_records_agent = PublicRecordsCollectorAgent(tools=tool_manager.tools)
-        dark_web_agent = DarkWebCollectorAgent(tools=tool_manager.tools)
-        
-        search_results = {}
-        raw_data = {
-            "total_records": 0,
-            "sources": state["search_coordination_results"]["sources_identified"],
-            "collection_timestamp": "2024-01-01T00:00:00Z"
-        }
-        
-        # Collect surface web data if requested
-        if state["search_coordination_results"]["surface_web_sources"]:
-            surface_web_input = {
-                "task_type": "search",
-                "queries": [state.get("user_request", "general search")],
-                "engines": state["search_coordination_results"]["surface_web_sources"],
-                "max_results": 5
-            }
-            surface_result = await surface_web_agent.execute(surface_web_input)
-            if surface_result.success:
-                search_results["surface_web"] = surface_result.data.get("results", [])
-                raw_data["total_records"] += len(surface_result.data.get("results", []))
-                state["agents_participated"].append("SurfaceWebCollectorAgent")
-                state["confidence_level"] = max(state["confidence_level"], surface_result.confidence)
-                
-                # Enhanced URL extraction from surface web results and add to sources_used
-                extracted_urls = []
-                
-                # Handle different possible result structures
-                result_data = surface_result.data
-                
-                # Check if there are results at the top level
-                if "results" in result_data:
-                    all_results = result_data["results"]
-                else:
-                    all_results = [result_data]  # If single result object, wrap in list
-               
-                # Process all results to extract URLs
-                for result_item in all_results:
-                    if isinstance(result_item, dict):
-                        # Check for direct URLs in common fields
-                        if "url" in result_item and result_item["url"]:
-                            extracted_urls.append(result_item["url"])
-                        elif "urls" in result_item and isinstance(result_item["urls"], list):
-                            extracted_urls.extend(result_item["urls"])
-                        elif "links" in result_item and isinstance(result_item["links"], list):
-                            for link in result_item["links"]:
-                                if isinstance(link, str) and link.startswith("http"):
-                                    extracted_urls.append(link)
-                                elif isinstance(link, dict) and "url" in link:
-                                    extracted_urls.append(link["url"])
-                                elif isinstance(link, dict) and "link" in link:
-                                    extracted_urls.append(link["link"])
-                        
-                        # Check for nested search results
-                        if "results" in result_item:
-                            nested_results = result_item["results"]
-                            if isinstance(nested_results, list):
-                                for nested_result in nested_results:
-                                    if isinstance(nested_result, dict):
-                                        # Extract URLs from nested results
-                                        if "url" in nested_result and nested_result["url"]:
-                                            extracted_urls.append(nested_result["url"])
-                                        elif "link" in nested_result and nested_result["link"]:
-                                            extracted_urls.append(nested_result["link"])
-                                        elif "links" in nested_result and isinstance(nested_result["links"], list):
-                                            for link in nested_result["links"]:
-                                                if isinstance(link, str) and link.startswith("http"):
-                                                    extracted_urls.append(link)
-                                                elif isinstance(link, dict) and "url" in link:
-                                                    extracted_urls.append(link["url"])
-                                
-                # Also check for direct sources in the result data
-                if "sources" in result_data and isinstance(result_data["sources"], list):
-                    extracted_urls.extend(result_data["sources"])
-                
-                # Check if result data contains source links or references
-                if "source_links" in result_data and isinstance(result_data["source_links"], list):
-                    extracted_urls.extend(result_data["source_links"])
-                if "references" in result_data and isinstance(result_data["references"], list):
-                    extracted_urls.extend(result_data["references"])
-                if "citations" in result_data and isinstance(result_data["citations"], list):
-                    extracted_urls.extend(result_data["citations"])
-                
-                # Extract URLs from any string content that might contain them
-                def extract_urls_from_content(content):
-                    if isinstance(content, str):
-                        # Simple URL extraction from string content
-                        import re
-                        url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
-                        found_urls = re.findall(url_pattern, content)
-                        return found_urls
-                    elif isinstance(content, dict):
-                        urls = []
-                        for key, value in content.items():
-                            if isinstance(value, (str, dict, list)):
-                                urls.extend(extract_urls_from_content(value))
-                        return urls
-                    elif isinstance(content, list):
-                        urls = []
-                        for item in content:
-                            if isinstance(item, (str, dict, list)):
-                                urls.extend(extract_urls_from_content(item))
-                        return urls
-                    return []
-                
-                # Extract additional URLs from string content in the result data
-                extracted_urls.extend(extract_urls_from_content(result_data))
-                
-                # Add extracted URLs to sources_used (only unique HTTPS URLs)
-                for url in extracted_urls:
-                    if url and url.startswith("https://") and url not in state["sources_used"]:
-                        state["sources_used"].append(url)
-                        
-                # Also add any HTTP URLs if we don't have enough HTTPS URLs yet
-                for url in extracted_urls:
-                    if url and url.startswith("http://") and url not in state["sources_used"] and len([u for u in state["sources_used"] if u.startswith("https://")]) < 3:
-                        state["sources_used"].append(url)
-                
-                # Log how many URLs were added
-                unique_https_urls = [url for url in extracted_urls if url and url.startswith("https://")]
-                unique_http_urls = [url for url in extracted_urls if url and url.startswith("http://")]
-                logger.info(f"Extracted {len(unique_https_urls)} unique HTTPS URLs and {len(unique_http_urls)} HTTP URLs from surface web collection")
-                logger.info(f"Total sources in state now: {len(state['sources_used'])}")
-            else:
-                state = add_warning(state, f"Surface web collection failed: {surface_result.error_message}")
-                logger.warning(f"Surface web collection error: {surface_result.error_message}")
+     """Collect data from identified sources."""
+     try:
+          # Initialize collection agents with tools
+         # Using dynamic import to avoid import issues
+         import importlib.util
+         import os
+         tool_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'utils', 'tools', 'scrapegraph_integration.py')
+         spec = importlib.util.spec_from_file_location("scrapegraph_integration", tool_module_path)
+         if spec is not None and spec.loader is not None:
+             tool_module = importlib.util.module_from_spec(spec)
+             spec.loader.exec_module(tool_module)
+             get_global_tool_manager = tool_module.get_global_tool_manager
+         else:
+             raise ImportError("Could not load scraping tools module")
+         tool_manager = get_global_tool_manager()
+         
+         # Initialize AI backend bridge for state synchronization during collection
+         # Using dynamic import to avoid import issues
+         import importlib.util
+         import os
+         bridge_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'utils', 'bridge', 'ai_backend_bridge.py')
+         spec = importlib.util.spec_from_file_location("ai_backend_bridge", bridge_module_path)
+         if spec is not None and spec.loader is not None:
+             bridge_module = importlib.util.module_from_spec(spec)
+             spec.loader.exec_module(bridge_module)
+             get_global_ai_bridge = bridge_module.get_global_ai_bridge
+         else:
+             raise ImportError("Could not load AI backend bridge module")
+         
+         ai_backend_bridge = await get_global_ai_bridge()
+         
+         surface_web_agent = SurfaceWebCollectorAgent(tools=tool_manager.tools)
+         social_media_agent = SocialMediaCollectorAgent(tools=tool_manager.tools)
+         public_records_agent = PublicRecordsCollectorAgent(tools=tool_manager.tools)
+         dark_web_agent = DarkWebCollectorAgent(tools=tool_manager.tools)
+         
+         search_results = {}
+         raw_data = {
+             "total_records": 0,
+             "sources": state["search_coordination_results"]["sources_identified"],
+             "collection_timestamp": "2024-01-01T00:00:00Z"
+         }
+         
+         # Collect surface web data if requested
+         if state["search_coordination_results"]["surface_web_sources"]:
+             surface_web_input = {
+                 "task_type": "search",
+                 "queries": [state.get("user_request", "general search")],
+                 "engines": state["search_coordination_results"]["surface_web_sources"],
+                 "max_results": 5
+             }
+             surface_result = await surface_web_agent.execute(surface_web_input)
+             if surface_result.success:
+                 search_results["surface_web"] = surface_result.data.get("results", [])
+                 raw_data["total_records"] += len(surface_result.data.get("results", []))
+                 state["agents_participated"].append("SurfaceWebCollectorAgent")
+                 state["confidence_level"] = max(state["confidence_level"], surface_result.confidence)
+                 
+                 # Enhanced URL extraction from surface web results and add to sources_used
+                 extracted_urls = []
+                 
+                 # Handle different possible result structures
+                 result_data = surface_result.data
+                 
+                 # Check if there are results at the top level
+                 if "results" in result_data:
+                     all_results = result_data["results"]
+                 else:
+                     all_results = [result_data]  # If single result object, wrap in list
+                 
+                 # Process all results to extract URLs
+                 for result_item in all_results:
+                     if isinstance(result_item, dict):
+                         # Check for direct URLs in common fields
+                         if "url" in result_item and result_item["url"]:
+                             extracted_urls.append(result_item["url"])
+                         elif "urls" in result_item and isinstance(result_item["urls"], list):
+                             extracted_urls.extend(result_item["urls"])
+                         elif "links" in result_item and isinstance(result_item["links"], list):
+                             for link in result_item["links"]:
+                                 if isinstance(link, str) and link.startswith("http"):
+                                     extracted_urls.append(link)
+                                 elif isinstance(link, dict) and "url" in link:
+                                     extracted_urls.append(link["url"])
+                                 elif isinstance(link, dict) and "link" in link:
+                                     extracted_urls.append(link["link"])
+                         
+                         # Check for nested search results
+                         if "results" in result_item:
+                             nested_results = result_item["results"]
+                             if isinstance(nested_results, list):
+                                 for nested_result in nested_results:
+                                     if isinstance(nested_result, dict):
+                                         # Extract URLs from nested results
+                                         if "url" in nested_result and nested_result["url"]:
+                                             extracted_urls.append(nested_result["url"])
+                                         elif "link" in nested_result and nested_result["link"]:
+                                             extracted_urls.append(nested_result["link"])
+                                         elif "links" in nested_result and isinstance(nested_result["links"], list):
+                                             for link in nested_result["links"]:
+                                                 if isinstance(link, str) and link.startswith("http"):
+                                                     extracted_urls.append(link)
+                                                 elif isinstance(link, dict) and "url" in link:
+                                                     extracted_urls.append(link["url"])
+                                 
+                 # Also check for direct sources in the result data
+                 if "sources" in result_data and isinstance(result_data["sources"], list):
+                     extracted_urls.extend(result_data["sources"])
+                 
+                 # Check if result data contains source links or references
+                 if "source_links" in result_data and isinstance(result_data["source_links"], list):
+                     extracted_urls.extend(result_data["source_links"])
+                 if "references" in result_data and isinstance(result_data["references"], list):
+                     extracted_urls.extend(result_data["references"])
+                 if "citations" in result_data and isinstance(result_data["citations"], list):
+                     extracted_urls.extend(result_data["citations"])
+                 
+                 # Extract URLs from any string content that might contain them
+                 def extract_urls_from_content(content):
+                     if isinstance(content, str):
+                         # Simple URL extraction from string content
+                         import re
+                         url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+                         found_urls = re.findall(url_pattern, content)
+                         return found_urls
+                     elif isinstance(content, dict):
+                         urls = []
+                         for key, value in content.items():
+                             if isinstance(value, (str, dict, list)):
+                                 urls.extend(extract_urls_from_content(value))
+                         return urls
+                     elif isinstance(content, list):
+                         urls = []
+                         for item in content:
+                             if isinstance(item, (str, dict, list)):
+                                 urls.extend(extract_urls_from_content(item))
+                         return urls
+                     return []
+                 
+                 # Extract additional URLs from string content in the result data
+                 extracted_urls.extend(extract_urls_from_content(result_data))
+                 
+                 # Add extracted URLs to sources_used (only unique HTTPS URLs)
+                 for url in extracted_urls:
+                     if url and url.startswith("https://") and url not in state["sources_used"]:
+                         state["sources_used"].append(url)
+                         
+                 # Also add any HTTP URLs if we don't have enough HTTPS URLs yet
+                 for url in extracted_urls:
+                     if url and url.startswith("http://") and url not in state["sources_used"] and len([u for u in state["sources_used"] if u.startswith("https://")]) < 3:
+                         state["sources_used"].append(url)
+                 
+                 # Log how many URLs were added
+                 unique_https_urls = [url for url in extracted_urls if url and url.startswith("https://")]
+                 unique_http_urls = [url for url in extracted_urls if url and url.startswith("http://")]
+                 logger.info(f"Extracted {len(unique_https_urls)} unique HTTPS URLs and {len(unique_http_urls)} HTTP URLs from surface web collection")
+                 logger.info(f"Total sources in state now: {len(state['sources_used'])}")
+                 
+                 # Sync with backend after surface web collection
+                 try:
+                     sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                     if not sync_result.get("success", True):
+                         logger.warning(f"Surface web collection state sync failed: {sync_result.get('error')}")
+                 except Exception as sync_e:
+                     logger.warning(f"Could not sync surface web collection state with backend: {str(sync_e)}")
+             else:
+                 state = add_warning(state, f"Surface web collection failed: {surface_result.error_message}")
+                 logger.warning(f"Surface web collection error: {surface_result.error_message}")
 
-        # Collect social media data if requested
-        if state["search_coordination_results"]["social_media_sources"]:
-            social_media_input = {
-                "task_type": "social_media_scan",
-                "search_queries": [state.get("user_request", "general search")],
-                "platforms": state["search_coordination_results"]["social_media_sources"]
-            }
-            social_result = await social_media_agent.execute(social_media_input)
-            if social_result.success:
-                search_results["social_media"] = social_result.data.get("results", [])
-                raw_data["total_records"] += len(social_result.data.get("results", []))
-                state["agents_participated"].append("SocialMediaCollectorAgent")
-                state["confidence_level"] = max(state["confidence_level"], social_result.confidence)
-            else:
-                state = add_warning(state, f"Social media collection failed: {social_result.error_message}")
+         # Collect social media data if requested
+         if state["search_coordination_results"]["social_media_sources"]:
+             social_media_input = {
+                 "task_type": "social_media_scan",
+                 "search_queries": [state.get("user_request", "general search")],
+                 "platforms": state["search_coordination_results"]["social_media_sources"]
+             }
+             social_result = await social_media_agent.execute(social_media_input)
+             if social_result.success:
+                 search_results["social_media"] = social_result.data.get("results", [])
+                 raw_data["total_records"] += len(social_result.data.get("results", []))
+                 state["agents_participated"].append("SocialMediaCollectorAgent")
+                 state["confidence_level"] = max(state["confidence_level"], social_result.confidence)
+                 
+                 # Sync with backend after social media collection
+                 try:
+                     sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                     if not sync_result.get("success", True):
+                         logger.warning(f"Social media collection state sync failed: {sync_result.get('error')}")
+                 except Exception as sync_e:
+                     logger.warning(f"Could not sync social media collection state with backend: {str(sync_e)}")
+             else:
+                 state = add_warning(state, f"Social media collection failed: {social_result.error_message}")
 
-        # Collect public records data if requested
-        if state["search_coordination_results"]["public_records_sources"]:
-            public_records_input = {
-                "task_type": "public_records_search",
-                "search_criteria": [state.get("user_request", "general search")],
-                "record_types": state["search_coordination_results"]["public_records_sources"]
-            }
-            public_result = await public_records_agent.execute(public_records_input)
-            if public_result.success:
-                search_results["public_records"] = public_result.data.get("results", [])
-                raw_data["total_records"] += len(public_result.data.get("results", []))
-                state["agents_participated"].append("PublicRecordsCollectorAgent")
-                state["confidence_level"] = max(state["confidence_level"], public_result.confidence)
-            else:
-                state = add_warning(state, f"Public records collection failed: {public_result.error_message}")
+         # Collect public records data if requested
+         if state["search_coordination_results"]["public_records_sources"]:
+             public_records_input = {
+                 "task_type": "public_records_search",
+                 "search_criteria": [state.get("user_request", "general search")],
+                 "record_types": state["search_coordination_results"]["public_records_sources"]
+             }
+             public_result = await public_records_agent.execute(public_records_input)
+             if public_result.success:
+                 search_results["public_records"] = public_result.data.get("results", [])
+                 raw_data["total_records"] += len(public_result.data.get("results", []))
+                 state["agents_participated"].append("PublicRecordsCollectorAgent")
+                 state["confidence_level"] = max(state["confidence_level"], public_result.confidence)
+                 
+                 # Sync with backend after public records collection
+                 try:
+                     sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                     if not sync_result.get("success", True):
+                         logger.warning(f"Public records collection state sync failed: {sync_result.get('error')}")
+                 except Exception as sync_e:
+                     logger.warning(f"Could not sync public records collection state with backend: {str(sync_e)}")
+             else:
+                 state = add_warning(state, f"Public records collection failed: {public_result.error_message}")
 
-        # Collect dark web data if requested (with authorization)
-        if state["search_coordination_results"]["dark_web_sources"]:
-            dark_web_input = {
-                "task_type": "dark_web_scan",
-                "search_queries": [state.get("user_request", "general search")],
-                "sources": state["search_coordination_results"]["dark_web_sources"],
-                "authorized": True  # This would normally come from auth system
-            }
-            dark_result = await dark_web_agent.execute(dark_web_input)
-            if dark_result.success:
-                search_results["dark_web"] = dark_result.data.get("results", [])
-                raw_data["total_records"] += len(dark_result.data.get("results", []))
-                state["agents_participated"].append("DarkWebCollectorAgent")
-                state["confidence_level"] = max(state["confidence_level"], dark_result.confidence)
-            else:
-                state = add_warning(state, f"Dark web collection failed: {dark_result.error_message}")
+         # Collect dark web data if requested (with authorization)
+         if state["search_coordination_results"]["dark_web_sources"]:
+             dark_web_input = {
+                 "task_type": "dark_web_scan",
+                 "search_queries": [state.get("user_request", "general search")],
+                 "sources": state["search_coordination_results"]["dark_web_sources"],
+                 "authorized": True  # This would normally come from auth system
+             }
+             dark_result = await dark_web_agent.execute(dark_web_input)
+             if dark_result.success:
+                 search_results["dark_web"] = dark_result.data.get("results", [])
+                 raw_data["total_records"] += len(dark_result.data.get("results", []))
+                 state["agents_participated"].append("DarkWebCollectorAgent")
+                 state["confidence_level"] = max(state["confidence_level"], dark_result.confidence)
+                 
+                 # Sync with backend after dark web collection
+                 try:
+                     sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+                     if not sync_result.get("success", True):
+                         logger.warning(f"Dark web collection state sync failed: {sync_result.get('error')}")
+                 except Exception as sync_e:
+                     logger.warning(f"Could not sync dark web collection state with backend: {str(sync_e)}")
+             else:
+                 state = add_warning(state, f"Dark web collection failed: {dark_result.error_message}")
 
-        state["search_results"] = search_results
-        state["raw_data"] = raw_data
-        state["collection_status"]["data_collection"] = InvestigationStatus.COMPLETED
+         state["search_results"] = search_results
+         state["raw_data"] = raw_data
+         state["collection_status"]["data_collection"] = InvestigationStatus.COMPLETED
 
-        # Calculate data quality metrics based on what was collected
-        total_records = raw_data["total_records"]
-        state["data_quality_metrics"] = {
-            "completeness": min(1.0, total_records / max(1, state.get("search_coordination_results", {}).get("sources_identified", 1))),
-            "accuracy": 0.85,  # Default for now
-            "relevance": 0.8,  # Default for now
-            "freshness": 0.9   # Default for now
-        }
+         # Calculate data quality metrics based on what was collected
+         total_records = raw_data["total_records"]
+         state["data_quality_metrics"] = {
+             "completeness": min(1.0, total_records / max(1, state.get("search_coordination_results", {}).get("sources_identified", 1))),
+             "accuracy": 0.85,  # Default for now
+             "relevance": 0.8,  # Default for now
+             "freshness": 0.9   # Default for now
+         }
 
-        return state
+         # Final sync with backend after all collection is complete
+         try:
+             sync_result = await ai_backend_bridge.sync_investigation_state(state['investigation_id'], state)
+             if not sync_result.get("success", True):
+                 logger.warning(f"Final collection state sync failed: {sync_result.get('error')}")
+         except Exception as sync_e:
+             logger.warning(f"Could not sync final collection state with backend: {str(sync_e)}")
 
-    except Exception as e:
-        return add_error(state, str(e), InvestigationPhase.COLLECTION, "data_collection_node")
+         return state
+
+     except Exception as e:
+         return add_error(state, str(e), InvestigationPhase.COLLECTION, "data_collection_node")
 
 async def data_fusion_node(state: InvestigationState) -> InvestigationState:
     """Fuse and correlate data from multiple sources."""

@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Optional, Union
 from datetime import datetime, timedelta
 
 from ..base.osint_agent import LLMOSINTAgent, AgentConfig
-from ...utils.tools.scrapegraph_integration import get_global_tool_manager, ToolManager
+
 
 
 class PublicRecordsCollectorAgent(LLMOSINTAgent):
@@ -23,8 +23,40 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
             role="Public Records Collector",
             description="Collects information from public records including court records, property records, business filings, and government databases"
         )
+        # Dynamically import the tool manager classes to avoid import issues
+        import importlib.util
+        import os
+        
+        # Import the tool module dynamically
+        tool_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'utils', 'tools', 'langchain_tools.py')
+        spec = importlib.util.spec_from_file_location("langchain_tools", tool_module_path)
+        if spec is not None and spec.loader is not None:
+            tool_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(tool_module)
+            ToolManager = tool_module.ToolManager
+            get_global_tool_manager = tool_module.get_global_tool_manager
+        else:
+            raise ImportError("Could not load langchain tools module")
+        
         super().__init__(config=config, tools=tools)
         self.tool_manager = ToolManager() if not tools else get_global_tool_manager()
+        
+        # Initialize backend scraping adapter
+        from ...utils.tools.scrapegraph_integration import BackendScrapingAdapter
+
+        # Dynamically import the IntegrationConfig to avoid import issues
+        config_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'integration_config.py')
+        config_spec = importlib.util.spec_from_file_location("integration_config", config_module_path)
+        if config_spec is not None and config_spec.loader is not None:
+            config_module = importlib.util.module_from_spec(config_spec)
+            config_spec.loader.exec_module(config_module)
+            IntegrationConfig = config_module.IntegrationConfig
+        else:
+            raise ImportError("Could not load integration config module")
+        
+        integration_config = IntegrationConfig()
+        self.scraping_adapter = BackendScrapingAdapter(base_url=integration_config.backend_scraping_base_url)
+        
         self.supported_record_types = [
             "court_records", "property_records", "business_filings",
             "voter_registration", "professional_licenses", "tax_records",
@@ -618,7 +650,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
     ) -> List[Dict[str, Any]]:
         """Simulate business filing search."""
         filings = []
-        filing_types = ["articles_of_incorporation", "annual_report", " amendment", "dissolution"]
+        filing_types = ["articles_of_incorporation", "annual_report", "amendment", "dissolution"]
 
         for i in range(4):
             filing = {
@@ -686,7 +718,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
             for i in range(3):
                 patent = {
                     "type": "patent",
-                    "patent_number": patent_number or f"US{(2020 + i),0>7}{chr(65 + i)}1",
+                    "patent_number": patent_number or f"US{2020 + i:0>7}{chr(65 + i)}1",
                     "title": f"Invention Title {i+1}",
                     "inventor": name or f"Inventor {i+1}",
                     "assignee": company or f"Company {i+1}",
@@ -705,7 +737,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
             for i in range(3):
                 trademark = {
                     "type": "trademark",
-                    "trademark_number": f"{(2020 + i),0>6}",
+                    "trademark_number": f"{2020 + i:0>6}",
                     "trademark_name": trademark_name or f"Brand Name {i+1}",
                     "owner": company or f"Company {i+1}",
                     "filing_date": self._generate_date(i * 120),

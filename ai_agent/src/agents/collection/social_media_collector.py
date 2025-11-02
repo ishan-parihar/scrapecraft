@@ -9,7 +9,35 @@ import json
 from datetime import datetime, timedelta
 
 from ..base.osint_agent import LLMOSINTAgent, AgentConfig
-from ...utils.tools.scrapegraph_integration import get_global_tool_manager
+
+# Initialize backend scraping adapter
+from ...utils.tools.scrapegraph_integration import BackendScrapingAdapter
+import importlib.util
+import os
+
+# Dynamically import the IntegrationConfig to avoid import issues
+config_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'integration_config.py')
+spec = importlib.util.spec_from_file_location("integration_config", config_module_path)
+if spec is not None and spec.loader is not None:
+    config_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_module)
+    IntegrationConfig = config_module.IntegrationConfig
+else:
+    raise ImportError("Could not load integration config module")
+
+# Dynamically import the tool manager classes to avoid import issues
+tool_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'utils', 'tools', 'langchain_tools.py')
+tool_spec = importlib.util.spec_from_file_location("langchain_tools", tool_module_path)
+if tool_spec is not None and tool_spec.loader is not None:
+    tool_module = importlib.util.module_from_spec(tool_spec)
+    tool_spec.loader.exec_module(tool_module)
+    ToolManager = tool_module.ToolManager
+    get_global_tool_manager = tool_module.get_global_tool_manager
+else:
+    raise ImportError("Could not load langchain tools module")
+
+integration_config = IntegrationConfig()
+scraping_adapter = BackendScrapingAdapter(base_url=integration_config.backend_scraping_base_url)
 
 
 class SocialMediaCollectorAgent(LLMOSINTAgent):
@@ -25,8 +53,8 @@ class SocialMediaCollectorAgent(LLMOSINTAgent):
             description="Collects information from social media platforms including profiles, posts, and connections"
         )
         # Initialize with tools
-        super().__init__(config=config, tools=tools or [])
-        self.tool_manager = get_global_tool_manager()
+        super().__init__(config=config, tools=tools)
+        self.tool_manager = ToolManager() if not tools else get_global_tool_manager()
         self.supported_platforms = [
             "twitter", "facebook", "instagram", "linkedin", 
             "tiktok", "reddit", "youtube", "telegram"

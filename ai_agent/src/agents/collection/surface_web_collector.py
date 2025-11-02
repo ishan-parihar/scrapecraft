@@ -10,7 +10,22 @@ import httpx
 from bs4 import BeautifulSoup
 
 from ..base.osint_agent import LLMOSINTAgent, AgentConfig
-from ...utils.tools.scrapegraph_integration import get_global_tool_manager
+
+# Dynamically import the tool manager classes to avoid import issues
+import importlib.util
+import os
+
+# Import the tool module dynamically
+tool_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'utils', 'tools', 'langchain_tools.py')
+spec = importlib.util.spec_from_file_location("langchain_tools", tool_module_path)
+if spec is not None and spec.loader is not None:
+    tool_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool_module)
+    ToolManager = tool_module.ToolManager
+    get_global_tool_manager = tool_module.get_global_tool_manager
+else:
+    raise ImportError("Could not load langchain tools module")
+
 
 
 class SurfaceWebCollectorAgent(LLMOSINTAgent):
@@ -26,8 +41,8 @@ class SurfaceWebCollectorAgent(LLMOSINTAgent):
             description="Collects information from search engines, public websites, and surface web content"
         )
         # Initialize with tools
-        super().__init__(config=config, tools=tools or [])
-        self.tool_manager = get_global_tool_manager()
+        super().__init__(config=config, tools=tools)
+        self.tool_manager = ToolManager() if not tools else get_global_tool_manager()
         self.supported_search_engines = [
             "google", "bing", "duckduckgo", "yahoo", "yandex"
         ]
@@ -36,14 +51,22 @@ class SurfaceWebCollectorAgent(LLMOSINTAgent):
             "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         )
         self.request_delay = 1.0  # Delay between requests to avoid rate limiting
-        self.supported_search_engines = [
-            "google", "bing", "duckduckgo", "yahoo", "yandex"
-        ]
-        self.user_agent = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        )
-        self.request_delay = 1.0  # Delay between requests to avoid rate limiting
+        
+        # Initialize backend scraping adapter
+        from ...utils.tools.scrapegraph_integration import BackendScrapingAdapter
+
+        # Dynamically import the IntegrationConfig to avoid import issues
+        config_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'integration_config.py')
+        config_spec = importlib.util.spec_from_file_location("integration_config", config_module_path)
+        if config_spec is not None and config_spec.loader is not None:
+            config_module = importlib.util.module_from_spec(config_spec)
+            config_spec.loader.exec_module(config_module)
+            IntegrationConfig = config_module.IntegrationConfig
+        else:
+            raise ImportError("Could not load integration config module")
+        
+        integration_config = IntegrationConfig()
+        self.scraping_adapter = BackendScrapingAdapter(base_url=integration_config.backend_scraping_base_url)
     
     def _get_system_prompt(self) -> str:
         """
@@ -80,7 +103,7 @@ class SurfaceWebCollectorAgent(LLMOSINTAgent):
             }
             import json
             return json.dumps(error_result)
-
+    
     def _process_output(self, raw_output: str, intermediate_steps: Optional[List] = None) -> Dict[str, Any]:
         """
         Process and structure the raw output from the agent.
