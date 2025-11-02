@@ -86,7 +86,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             
             <div>
               <label className="block text-sm font-medium mb-2">
-                ScrapeGraphAI API Key
+                 Data Collection API Key
               </label>
               <Input
                 type="password"
@@ -96,7 +96,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               />
               <p className="text-xs text-muted mt-1">
                 Get your key from <a 
-                  href="https://scrapegraphai.com/keys" 
+                   href="https://scrapegraphai.com"
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-primary hover:underline"

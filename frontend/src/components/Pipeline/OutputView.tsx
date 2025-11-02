@@ -1,87 +1,90 @@
 import React from 'react';
-import { usePipelineStore } from '../../store/pipelineStore';
+ import { useInvestigationStore } from '../../store/investigationStore';
 import LoadingSpinner from '../Common/LoadingSpinner';
 
 const OutputView: React.FC = () => {
-  const { currentPipeline, executionResults } = usePipelineStore();
+  const { currentInvestigation } = useInvestigationStore();
 
-  if (!currentPipeline) {
+   if (!currentInvestigation) {
     return (
       <div className="h-full flex items-center justify-center text-muted">
-        <p>No pipeline selected</p>
+         <p>No investigation selected</p>
       </div>
     );
   }
 
-  if (currentPipeline.status === 'running') {
+   if (currentInvestigation.status === 'ACTIVE' || currentInvestigation.status === 'PLANNING') {
     return (
       <div className="h-full flex flex-col items-center justify-center">
         <LoadingSpinner />
-        <p className="mt-4 text-muted">Executing pipeline...</p>
+         <p className="mt-4 text-muted">Investigation in progress...</p>
       </div>
     );
   }
 
-  if (!executionResults || executionResults.length === 0) {
+  const evidence = currentInvestigation.collected_evidence || [];
+  if (!evidence || evidence.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted">
-        <p className="text-lg mb-2">No execution results yet</p>
-        <p className="text-sm">Click "Run Pipeline" to execute your scraping code</p>
+        <p className="text-lg mb-2">No collected evidence yet</p>
+         <p className="text-sm">Execute your investigation to collect OSINT intelligence</p>
       </div>
     );
   }
 
-  return (
+   return (
     <div className="h-full flex flex-col p-4">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold mb-2">Execution Results</h3>
-        <div className="text-sm text-muted">
-          Status: <span className={`font-medium ${
-            currentPipeline.status === 'completed' ? 'text-success' : 
-            currentPipeline.status === 'failed' ? 'text-error' : 
-            'text-muted'
-          }`}>
-            {currentPipeline.status}
-          </span>
+         <h3 className="text-lg font-semibold mb-2">Collected Evidence</h3>
+         <div className="text-sm text-muted">
+           Status: <span className={`font-medium ${
+             currentInvestigation.status === 'COMPLETED' ? 'text-success' : 
+             currentInvestigation.status === 'ARCHIVED' ? 'text-muted' : 
+             'text-warning'
+           }`}>
+             {currentInvestigation.status}
+           </span>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-4">
-        {executionResults.map((result, index) => (
-          <div key={index} className="card">
+        {evidence.map((item, index) => (
+          <div key={item.id} className="card">
             <div className="flex items-start justify-between mb-2">
               <h4 className="font-medium">
-                Result {index + 1}
-                {result.url && <span className="text-sm text-muted ml-2">({result.url})</span>}
+                Evidence {index + 1}: {item.source_type}
+                <span className="text-sm text-muted ml-2">({item.source})</span>
               </h4>
-              {result.success !== undefined && (
-                <span className={`text-sm ${result.success ? 'text-success' : 'text-error'}`}>
-                  {result.success ? '✓ Success' : '✗ Failed'}
-                </span>
-              )}
+              <span className={`text-sm ${
+                item.reliability_score >= 70 ? 'text-success' : 
+                item.reliability_score >= 30 ? 'text-warning' : 
+                'text-error'
+              }`}>
+                Reliability: {item.reliability_score}%
+              </span>
             </div>
             
             <div className="bg-code-bg rounded-md p-3 overflow-x-auto">
               <pre className="text-sm text-code-text">
-                {JSON.stringify(result, null, 2)}
+                {JSON.stringify(item, null, 2)}
               </pre>
             </div>
           </div>
         ))}
       </div>
 
-      {executionResults.length > 0 && (
+      {evidence.length > 0 && (
         <div className="mt-4 pt-4 border-t border-border">
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted">
-              Total results: {executionResults.length}
+              Total evidence: {evidence.length}
             </span>
             <button
               onClick={() => {
-                const dataStr = JSON.stringify(executionResults, null, 2);
+                const dataStr = JSON.stringify(evidence, null, 2);
                 const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
                 
-                const exportFileDefaultName = `scrape_results_${Date.now()}.json`;
+                 const exportFileDefaultName = `osint_evidence_${Date.now()}.json`;
                 
                 const linkElement = document.createElement('a');
                 linkElement.setAttribute('href', dataUri);

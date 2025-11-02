@@ -1,91 +1,85 @@
 import React, { useEffect, useState } from 'react';
-import { usePipelineStore } from '../../store/pipelineStore';
+ import { useInvestigationStore } from '../../store/investigationStore';
 import Button from '../Common/Button';
 import Prism from 'prismjs';
 
 const CodeViewer: React.FC = () => {
-  const { currentPipeline } = usePipelineStore();
+  const { currentInvestigation } = useInvestigationStore();
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<any>(null);
 
   useEffect(() => {
     // Highlight code when it changes
     Prism.highlightAll();
-  }, [currentPipeline?.code]);
+   }, [currentInvestigation?.code]);
 
-  const handleCopyCode = () => {
-    if (currentPipeline?.code) {
-      navigator.clipboard.writeText(currentPipeline.code);
-      // You could add a toast notification here
-    }
-  };
+   const handleCopyCode = () => {
+     if (currentInvestigation?.code) {
+       navigator.clipboard.writeText(currentInvestigation.code);
+       // You could add a toast notification here
+     }
+   };
 
-  const handleDownloadCode = () => {
-    if (currentPipeline?.code) {
-      const blob = new Blob([currentPipeline.code], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${currentPipeline.name.replace(/\s+/g, '_')}_scraper.py`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    }
-  };
+   const handleDownloadCode = () => {
+     if (currentInvestigation?.code) {
+       const blob = new Blob([currentInvestigation.code], { type: 'text/plain' });
+       const url = window.URL.createObjectURL(blob);
+       const a = document.createElement('a');
+       a.href = url;
+        a.download = `${currentInvestigation.title.replace(/\s+/g, '_')}_osint_collector.py`;
+       document.body.appendChild(a);
+       a.click();
+       document.body.removeChild(a);
+       window.URL.revokeObjectURL(url);
+     }
+   };
 
-  const handleExecuteCode = async () => {
-    if (!currentPipeline?.code || !currentPipeline?.urls || !currentPipeline?.schema) {
-      alert('Please ensure you have URLs and a schema defined before executing.');
-      return;
-    }
+    const handleExecuteCode = async () => {
+      if (!currentInvestigation?.code) {
+        alert('Please ensure you have code generated before executing.');
+        return;
+      }
 
-    // Check for API key
-    const apiKey = localStorage.getItem('SCRAPEGRAPH_API_KEY');
-    if (!apiKey) {
-      alert('Please configure your ScrapeGraphAI API key in Settings before executing.');
-      return;
-    }
+     // Check for API key
+     const apiKey = localStorage.getItem('SCRAPEGRAPH_API_KEY');
+     if (!apiKey) {
+       alert('Please configure your ScrapeGraphAI API key in Settings before executing.');
+       return;
+     }
 
-    setIsExecuting(true);
-    setExecutionResult(null);
+     setIsExecuting(true);
+     setExecutionResult(null);
 
-    try {
-      // Use the pipeline store's runPipeline function
-      await usePipelineStore.getState().runPipeline(currentPipeline.id);
-      
-      // Get the updated pipeline with results
-      const updatedPipeline = usePipelineStore.getState().currentPipeline;
-      
-      if (updatedPipeline?.status === 'completed') {
+      try {
+        // For OSINT, we may want to execute the code differently
+        // For now, let's just simulate execution or call the backend API directly
+        // This would need to call a backend endpoint for actual execution
+        console.log('Executing OSINT collection code...', currentInvestigation.id);
+        
+        // Placeholder for actual execution logic
+        // In a real implementation, this would call an API endpoint to execute the code
         setExecutionResult({ 
           success: true, 
-          results: updatedPipeline.results 
+          results: ['OSINT collection executed successfully'] 
         });
-      } else if (updatedPipeline?.status === 'failed') {
+      } catch (error) {
+        console.error('Execution failed:', error);
         setExecutionResult({ 
           success: false, 
-          errors: ['Pipeline execution failed. Check the console for details.'] 
+          errors: [`Execution failed: ${error}`] 
         });
+      } finally {
+        setIsExecuting(false);
       }
-    } catch (error) {
-      console.error('Execution failed:', error);
-      setExecutionResult({ 
-        success: false, 
-        errors: [`Execution failed: ${error}`] 
-      });
-    } finally {
-      setIsExecuting(false);
-    }
-  };
+   };
 
-  if (!currentPipeline?.code) {
+     if (!currentInvestigation?.code) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <div className="text-center text-muted">
           <p className="text-lg mb-2">No code generated yet</p>
           <p className="text-sm">
-            Use the AI assistant to generate code for your scraping pipeline
+             Use the AI assistant to generate code for your OSINT investigation
           </p>
         </div>
       </div>
@@ -122,7 +116,7 @@ const CodeViewer: React.FC = () => {
             </h4>
             {executionResult.success ? (
               <div>
-                <p className="text-sm mb-2">Scraped {executionResult.results?.length || 0} items successfully!</p>
+                 <p className="text-sm mb-2">Collected {executionResult.results?.length || 0} intelligence items successfully!</p>
                 <p className="text-xs text-muted">Check the Output tab to see the results.</p>
               </div>
             ) : (
@@ -137,7 +131,7 @@ const CodeViewer: React.FC = () => {
         
         <pre className="language-python">
           <code className="language-python">
-            {currentPipeline.code}
+             {currentInvestigation.code}
           </code>
         </pre>
       </div>

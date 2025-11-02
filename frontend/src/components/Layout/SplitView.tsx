@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import ChatContainer from '../Chat/ChatContainer';
-import PipelinePanel from '../Pipeline/PipelinePanel';
-import WorkflowSidebar from '../Workflow/WorkflowSidebar';
+import InvestigationDashboard from '../OSINT/InvestigationDashboard';
+import AgentCoordinator from '../Workflow/AgentCoordinator';
+import { useInvestigationStore } from '../../store/investigationStore';
 
 const SplitView: React.FC = () => {
   const [splitPosition, setSplitPosition] = useState(40); // 40% for chat
   const [isDragging, setIsDragging] = useState(false);
+  const { currentInvestigation } = useInvestigationStore();
 
   const handleMouseDown = () => {
     setIsDragging(true);
@@ -26,10 +28,25 @@ const SplitView: React.FC = () => {
     setIsDragging(false);
   };
 
+  const handlePhaseChange = (phase: string) => {
+    if (currentInvestigation) {
+      // Update investigation phase via store
+      useInvestigationStore.getState().updateInvestigation(currentInvestigation.id, {
+        current_phase: phase,
+        updated_at: new Date().toISOString()
+      });
+    }
+  };
+
+  const handleAgentAssignment = (assignment: any) => {
+    console.log('Agent assigned:', assignment);
+    // In a real implementation, this would update agent assignments in the store
+  };
+
   return (
     <div className="flex h-full">
-      {/* Workflow Sidebar */}
-      <WorkflowSidebar />
+      {/* Agent Coordinator Sidebar - Replaces Workflow Sidebar */}
+      <AgentCoordinator />
       
       {/* Main Content Area */}
       <div 
@@ -38,7 +55,7 @@ const SplitView: React.FC = () => {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {/* Chat Panel */}
+        {/* Chat Panel - Investigation Planning */}
         <div 
           className="h-full border-r border-border"
           style={{ width: `${splitPosition}%` }}
@@ -53,12 +70,26 @@ const SplitView: React.FC = () => {
           onMouseDown={handleMouseDown}
         />
         
-        {/* Pipeline Panel */}
+        {/* Investigation Dashboard - Replaces Pipeline Panel */}
         <div 
           className="h-full"
           style={{ width: `${100 - splitPosition}%` }}
         >
-          <PipelinePanel />
+          {currentInvestigation ? (
+            <InvestigationDashboard 
+              investigation={currentInvestigation}
+              onPhaseChange={handlePhaseChange}
+              onAgentAssignment={handleAgentAssignment}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center bg-background">
+              <div className="text-center">
+                <div className="text-4xl mb-4">🔍</div>
+                <h3 className="text-lg font-medium mb-2">No Investigation Selected</h3>
+                <p className="text-muted">Start a new investigation to begin</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

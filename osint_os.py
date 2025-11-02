@@ -14,6 +14,7 @@ import os
 import sys
 from datetime import datetime
 from typing import Dict, Any, Optional
+from dotenv import load_dotenv
 
 # Add project root to path to enable imports
 sys.path.insert(0, os.path.abspath('.'))
@@ -35,6 +36,9 @@ class OSINTOperatingSystem:
     """
     
     def __init__(self):
+        # Load environment variables from .env file
+        load_dotenv()
+        
         self.workflow: Optional[OSINTWorkflow] = None
         self.state: Optional[InvestigationState] = None
         self.logger = None

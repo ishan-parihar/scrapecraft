@@ -1,55 +1,32 @@
 import React from 'react';
 import Button from '../Common/Button';
-import { useChatStore } from '../../store/chatStore';
-import { usePipelineStore } from '../../store/pipelineStore';
 
-const QuickActions: React.FC = () => {
-  const { sendMessage } = useChatStore();
-  const { currentPipeline } = usePipelineStore();
+interface QuickActionsProps {
+  onAction: (action: string) => void;
+  actions: string[];
+  disabled?: boolean;
+}
 
-  const quickActions = [
-    {
-      label: 'Add URL',
-      prompt: 'I want to add a new URL to scrape',
-      icon: '🔗'
-    },
-    {
-      label: 'Define Schema',
-      prompt: 'Help me define the data schema for extraction',
-      icon: '📋'
-    },
-    {
-      label: 'Generate Code',
-      prompt: 'Generate the Python code for my scraping pipeline',
-      icon: '💻'
-    },
-    {
-      label: 'Run Pipeline',
-      prompt: 'Execute the scraping pipeline',
-      icon: '▶️'
-    }
-  ];
-
-  const handleAction = (prompt: string) => {
-    if (currentPipeline) {
-      sendMessage(prompt, currentPipeline.id);
-    }
-  };
-
+const QuickActions: React.FC<QuickActionsProps> = ({ 
+  onAction, 
+  actions,
+  disabled = false
+}) => {
   return (
-    <div className="flex flex-wrap gap-2">
-      {quickActions.map((action) => (
-        <Button
-          key={action.label}
-          variant="secondary"
-          size="sm"
-          onClick={() => handleAction(action.prompt)}
-          disabled={!currentPipeline}
-        >
-          <span className="mr-1">{action.icon}</span>
-          {action.label}
-        </Button>
-      ))}
+    <div className="border-t border-border p-4 bg-secondary">
+      <div className="flex flex-wrap gap-2">
+        {actions.map((action, index) => (
+          <Button
+            key={index}
+            variant="secondary"
+            size="sm"
+            onClick={() => onAction(action)}
+            disabled={disabled}
+          >
+            {action}
+          </Button>
+        ))}
+      </div>
     </div>
   );
 };

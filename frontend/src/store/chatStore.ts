@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { ChatMessage } from '../types';
 import { api } from '../services/api';
-import { usePipelineStore } from './pipelineStore';
+import { useInvestigationStore } from './investigationStore';
 
 // Helper to generate UUID (you might want to install uuid package)
 function uuidv4() {
@@ -52,55 +52,54 @@ export const useChatStore = create<ChatState>((set, get) => ({
     setError(null);
 
     try {
-      // Get current pipeline context
-      const pipelineStore = usePipelineStore.getState();
-      const currentPipeline = pipelineStore.currentPipeline;
+       // Get current investigation context (using a placeholder for now)
+       const investigationStore = useInvestigationStore.getState();
+       const currentInvestigation = investigationStore.currentInvestigation;
       
-      const response = await api.post('/chat/message', {
-        message: content,
-        pipeline_id: pipelineId,
-        context: {
-          urls: currentPipeline?.urls || [],
-          schema: currentPipeline?.schema || {},
-          generated_code: currentPipeline?.code || ""
-        }
-      });
+       const response = await api.post('/chat/message', {
+         message: content,
+         investigation_id: pipelineId, // Using pipelineId as investigationId for now
+         context: {
+           targets: currentInvestigation?.targets || [],
+           intelligence_requirements: currentInvestigation?.intelligence_requirements || [],
+           collected_evidence: currentInvestigation?.collected_evidence || []
+         }
+       });
 
-      const assistantMessage: ChatMessage = {
-        id: uuidv4(),
-        role: 'assistant',
-        content: response.data.response,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          toolsUsed: response.data.tools_used
-        }
-      };
+       const assistantMessage: ChatMessage = {
+         id: uuidv4(),
+         role: 'assistant',
+         content: response.data.response,
+         timestamp: new Date().toISOString(),
+         metadata: {
+           toolsUsed: response.data.tools_used,
+           classification: 'UNCLASSIFIED'
+         }
+       };
 
       addMessage(assistantMessage);
 
-      // Update pipeline state if needed
-      if (response.data.urls || response.data.schema || response.data.code) {
-        pipelineStore.updatePipeline(pipelineId, {
-          urls: response.data.urls,
-          schema: response.data.schema,
-          code: response.data.code
-        });
-      }
-
-      // Update execution results if available
-      if (response.data.results && response.data.results.length > 0) {
-        pipelineStore.setExecutionResults(response.data.results);
-      }
+       // Update investigation state if needed
+       if (response.data.targets || response.data.intelligence_requirements || response.data.evidence) {
+         investigationStore.updateInvestigation(pipelineId, {
+           targets: response.data.targets || currentInvestigation?.targets || [],
+           intelligence_requirements: response.data.intelligence_requirements || currentInvestigation?.intelligence_requirements || [],
+           collected_evidence: response.data.evidence || currentInvestigation?.collected_evidence || []
+         });
+       }
 
     } catch (error: any) {
       setError(error.response?.data?.detail || 'Failed to send message');
       
-      const errorMessage: ChatMessage = {
-        id: uuidv4(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
-        timestamp: new Date().toISOString()
-      };
+       const errorMessage: ChatMessage = {
+         id: uuidv4(),
+         role: 'assistant',
+         content: 'Sorry, I encountered an error processing your request. Please try again.',
+         timestamp: new Date().toISOString(),
+         metadata: {
+           classification: 'UNCLASSIFIED'
+         }
+       };
       
       addMessage(errorMessage);
     } finally {

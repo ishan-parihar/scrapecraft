@@ -22,7 +22,7 @@ const StreamingMessage: React.FC<StreamingMessageProps> = ({
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-medium flex items-center space-x-1">
           <img src={logo} alt="AI" className="h-4 w-4" />
-          <span>ScrapeCraft AI</span>
+           <span>OSINT Assistant</span>
         </span>
         <span className="text-xs text-muted">
           {new Date(timestamp).toLocaleTimeString('en-US', { 

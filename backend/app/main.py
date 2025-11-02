@@ -5,6 +5,16 @@ import logging
 
 from app.config import settings
 from app.api import auth, chat, pipelines, scraping, execution, workflow
+
+# Import OSINT router - will be imported when dependencies are available
+try:
+    from app.api.osint import router as osint_router
+except ImportError:
+    # Delayed import to avoid issues when dependencies aren't installed
+    import importlib
+    osint_module = importlib.import_module("app.api.osint")
+    osint_router = osint_module.router
+
 from app.services.websocket import ConnectionManager
 from app.services.workflow_manager import get_workflow_manager
 from app.services.task_storage import task_storage
@@ -59,6 +69,13 @@ app.include_router(pipelines.router, prefix="/api/pipelines", tags=["pipelines"]
 app.include_router(scraping.router, prefix="/api/scraping", tags=["scraping"])
 app.include_router(execution.router, prefix="/api/execution", tags=["execution"])
 app.include_router(workflow.router, prefix="/api/workflow", tags=["workflow"])
+
+# Include OSINT router (already imported earlier)
+try:
+    app.include_router(osint_router, prefix="/api/osint", tags=["osint"])
+except NameError:
+    print("OSINT router not available - skipping OSINT API router")
+    pass
 
 @app.get("/")
 async def root():

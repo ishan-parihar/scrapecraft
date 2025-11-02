@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { usePipelineStore } from './pipelineStore';
+import { useInvestigationStore } from './investigationStore';
 import { useChatStore } from './chatStore';
 
 interface WebSocketState {
@@ -8,7 +8,7 @@ interface WebSocketState {
   reconnectAttempts: number;
   
   // Actions
-  connect: (pipelineId: string) => void;
+  connect: (investigationId: string) => void;
   disconnect: () => void;
   send: (data: any) => void;
 }
@@ -18,7 +18,7 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
   connectionStatus: 'disconnected',
   reconnectAttempts: 0,
 
-  connect: (pipelineId) => {
+  connect: (investigationId) => {
     const { ws, disconnect } = get();
     
     // Disconnect existing connection
@@ -29,10 +29,10 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     set({ connectionStatus: 'connecting' });
 
     const wsUrl = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
-    const websocket = new WebSocket(`${wsUrl}/ws/${pipelineId}`);
+    const websocket = new WebSocket(`${wsUrl}/ws/${investigationId}`);
 
     websocket.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('OSINT WebSocket connected');
       set({ 
         ws: websocket, 
         connectionStatus: 'connected',
@@ -50,11 +50,11 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     };
 
     websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('OSINT WebSocket error:', error);
     };
 
     websocket.onclose = () => {
-      console.log('WebSocket disconnected');
+      console.log('OSINT WebSocket disconnected');
       set({ connectionStatus: 'disconnected' });
       
       // Attempt to reconnect
@@ -62,7 +62,7 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       if (reconnectAttempts < 5) {
         setTimeout(() => {
           set((state) => ({ reconnectAttempts: state.reconnectAttempts + 1 }));
-          get().connect(pipelineId);
+          get().connect(investigationId);
         }, Math.min(1000 * Math.pow(2, reconnectAttempts), 10000));
       }
     };
@@ -89,50 +89,85 @@ function handleWebSocketMessage(data: any) {
   const { type } = data;
   
   switch (type) {
-    case 'state_update':
-      // Update pipeline state
-      if (data.state) {
-        const pipelineStore = usePipelineStore.getState();
-        const currentPipeline = pipelineStore.currentPipeline;
-        if (currentPipeline) {
-          pipelineStore.updatePipeline(currentPipeline.id, data.state);
+    case 'investigation:updated':
+      // Update investigation state
+      if (data.investigation) {
+        const investigationStore = useInvestigationStore.getState();
+        const currentInvestigation = investigationStore.currentInvestigation;
+        if (currentInvestigation && currentInvestigation.id === data.investigation.id) {
+          investigationStore.updateInvestigation(data.investigation.id, data.investigation);
         }
       }
       break;
       
-    case 'workflow_update':
-      // Update workflow state
-      if (data.workflow) {
-        const { useWorkflowStore } = require('./workflowStore');
-        const workflowStore = useWorkflowStore.getState();
-        workflowStore.setWorkflow(data.workflow);
+    case 'investigation:phase_changed':
+      // Update investigation phase
+      if (data.investigation_id && data.new_phase) {
+        const investigationStore = useInvestigationStore.getState();
+        const currentInvestigation = investigationStore.currentInvestigation;
+        if (currentInvestigation && currentInvestigation.id === data.investigation_id) {
+          investigationStore.updateInvestigation(data.investigation_id, {
+            current_phase: data.new_phase,
+            updated_at: new Date().toISOString()
+          });
+        }
       }
       break;
       
-    case 'workflow_state':
-      // Set initial workflow state
-      if (data.workflow) {
-        const { useWorkflowStore } = require('./workflowStore');
-        const workflowStore = useWorkflowStore.getState();
-        workflowStore.setWorkflow(data.workflow);
-      }
-      // Notify that state was received (even if null)
-      window.dispatchEvent(new CustomEvent('workflow-state-received'));
+    case 'agent:status_changed':
+      // Handle agent status changes
+      console.log('Agent status changed:', data);
       break;
       
-    case 'approval_request':
-      // Handle approval requests
-      if (data.approval) {
-        const { useWorkflowStore } = require('./workflowStore');
-        const workflowStore = useWorkflowStore.getState();
-        // Trigger UI to show approval dialog
-        window.dispatchEvent(new CustomEvent('approval-request', { detail: data.approval }));
+    case 'agent:task_assigned':
+      // Handle agent task assignments
+      console.log('Agent task assigned:', data);
+      break;
+      
+    case 'agent:task_completed':
+      // Handle agent task completions
+      console.log('Agent task completed:', data);
+      break;
+      
+    case 'evidence:collected':
+      // Add collected evidence to investigation
+      if (data.evidence) {
+        const investigationStore = useInvestigationStore.getState();
+        const currentInvestigation = investigationStore.currentInvestigation;
+        if (currentInvestigation && currentInvestigation.id === data.evidence.investigation_id) {
+          investigationStore.addEvidence(data.evidence.investigation_id, data.evidence);
+        }
       }
       break;
       
-    case 'execution_update':
-      // Handle execution updates
-      console.log('Execution update:', data);
+    case 'evidence:verified':
+      // Update evidence verification status
+      if (data.evidence_id && data.verification_result) {
+        // Implementation for updating evidence verification status
+        console.log('Evidence verified:', data);
+      }
+      break;
+      
+    case 'threat:identified':
+      // Add threat assessment
+      if (data.threat) {
+        const investigationStore = useInvestigationStore.getState();
+        const currentInvestigation = investigationStore.currentInvestigation;
+        if (currentInvestigation && currentInvestigation.id === data.threat.investigation_id) {
+          investigationStore.addThreatAssessment(data.threat.investigation_id, data.threat);
+        }
+      }
+      break;
+      
+    case 'report:generated':
+      // Handle report generation
+      if (data.report) {
+        const investigationStore = useInvestigationStore.getState();
+        const currentInvestigation = investigationStore.currentInvestigation;
+        if (currentInvestigation && currentInvestigation.id === data.report.investigation_id) {
+          investigationStore.generateReport(data.report.investigation_id, data.report);
+        }
+      }
       break;
       
     case 'error':
@@ -143,23 +178,27 @@ function handleWebSocketMessage(data: any) {
       break;
       
     case 'response':
-      // Handle AI responses
-      if (data.response) {
-        const chatStore = useChatStore.getState();
-        chatStore.addMessage({
-          id: Date.now().toString(),
-          role: 'assistant',
-          content: data.response,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      // Also update workflow if included
-      if (data.workflow_state) {
-        const { useWorkflowStore } = require('./workflowStore');
-        const workflowStore = useWorkflowStore.getState();
-        workflowStore.setWorkflow(data.workflow_state);
-      }
+       // Handle AI responses for investigation planning
+       if (data.response) {
+         const chatStore = useChatStore.getState();
+         chatStore.addMessage({
+           id: Date.now().toString(),
+           role: data.role || 'assistant',
+           content: data.response,
+           timestamp: new Date().toISOString(),
+           investigation_id: data.investigation_id,
+           agent_id: data.agent_id,
+           message_type: data.message_type || 'planning',
+           metadata: {
+             toolsUsed: data.toolsUsed || [],
+             executionTime: data.executionTime || 0,
+             classification: data.classification || 'UNCLASSIFIED',
+             related_targets: data.related_targets,
+             related_evidence: data.related_evidence,
+             urgency: data.urgency
+           }
+         });
+       }
       break;
       
     default:

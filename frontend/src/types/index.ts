@@ -1,12 +1,19 @@
 // Chat Types
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'agent';
   content: string;
   timestamp: string;
+  investigation_id?: string;
+  agent_id?: string;
+  message_type?: 'planning' | 'status' | 'evidence' | 'analysis' | 'alert' | 'task';
   metadata?: {
     toolsUsed?: string[];
     executionTime?: number;
+    related_targets?: string[];
+    related_evidence?: string[];
+    urgency?: 'low' | 'medium' | 'high' | 'critical';
+    classification?: 'UNCLASSIFIED' | 'CONFIDENTIAL' | 'SECRET';
   };
 }
 

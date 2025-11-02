@@ -1,9 +1,9 @@
 import React from 'react';
-import { usePipelineStore } from '../../store/pipelineStore';
+import { useInvestigationStore } from '../../store/investigationStore';
 import { useWebSocketStore } from '../../store/websocketStore';
 
 const StatusBar: React.FC = () => {
-  const { currentPipeline } = usePipelineStore();
+  const { currentInvestigation } = useInvestigationStore();
   const { connectionStatus } = useWebSocketStore();
 
   const getStatusColor = (status: string) => {
@@ -23,25 +23,30 @@ const StatusBar: React.FC = () => {
     <div className="bg-secondary border-t border-border px-6 py-2 flex items-center justify-between text-sm">
       <div className="flex items-center space-x-6">
         <div className="flex items-center space-x-2">
-          <span className="text-muted">Status:</span>
-          <span className={getStatusColor(currentPipeline?.status || 'idle')}>
-            {currentPipeline?.status || 'Idle'}
+          <span className="text-muted">Investigation:</span>
+          <span className={getStatusColor(currentInvestigation?.status || 'PLANNING')}>
+            {currentInvestigation?.status || 'PLANNING'}
           </span>
         </div>
         
         <div className="flex items-center space-x-2">
-          <span className="text-muted">URLs:</span>
-          <span>{currentPipeline?.urls.length || 0}</span>
+          <span className="text-muted">Targets:</span>
+          <span>{currentInvestigation?.targets.length || 0}</span>
         </div>
         
         <div className="flex items-center space-x-2">
-          <span className="text-muted">Schema Fields:</span>
-          <span>{Object.keys(currentPipeline?.schema || {}).length}</span>
+          <span className="text-muted">Evidence:</span>
+          <span>{currentInvestigation?.collected_evidence.length || 0}</span>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <span className="text-muted">Threats:</span>
+          <span>{currentInvestigation?.threat_assessments.length || 0}</span>
         </div>
       </div>
       
       <div className="flex items-center space-x-4 text-xs text-muted">
-        <span>ScrapeCraft made by ScrapeGraphAI</span>
+        <span>OSINT-OS Intelligence Platform</span>
         <div className="flex items-center space-x-2">
           <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-success' : 'bg-error'}`} />
           <span className={getStatusColor(connectionStatus)}>

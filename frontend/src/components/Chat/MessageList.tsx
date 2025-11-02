@@ -1,10 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
-import { useChatStore } from '../../store/chatStore';
+import { ChatMessage } from '../../types';
 import LoadingSpinner from '../Common/LoadingSpinner';
 
-const MessageList: React.FC = () => {
-  const { messages, isLoading } = useChatStore();
+interface MessageListProps {
+  messages: ChatMessage[];
+  isLoading?: boolean;
+}
+
+const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = false }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {

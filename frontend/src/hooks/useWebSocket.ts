@@ -1,16 +1,16 @@
 import { useEffect } from 'react';
 import { useWebSocketStore } from '../store/websocketStore';
 
-export const useWebSocket = (pipelineId: string) => {
+export const useWebSocket = (investigationId: string) => {
   const { connect, disconnect } = useWebSocketStore();
 
   useEffect(() => {
-    if (pipelineId) {
-      connect(pipelineId);
+    if (investigationId) {
+      connect(investigationId);
     }
 
     return () => {
       disconnect();
     };
-  }, [pipelineId, connect, disconnect]);
+  }, [investigationId, connect, disconnect]);
 };

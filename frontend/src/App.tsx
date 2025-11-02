@@ -3,30 +3,36 @@ import SplitView from './components/Layout/SplitView';
 import Header from './components/Layout/Header';
 import StatusBar from './components/Layout/StatusBar';
 import LoadingScreen from './components/Common/LoadingScreen';
-import ApprovalManager from './components/Workflow/ApprovalManager';
 import { useWebSocket } from './hooks/useWebSocket';
-import { usePipelineStore } from './store/pipelineStore';
+import { useInvestigationStore } from './store/investigationStore';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-python';
 import 'prismjs/themes/prism-tomorrow.css';
 
 function App() {
-  const { currentPipeline, createPipeline, fetchPipelines, isLoading } = usePipelineStore();
+  const { 
+    currentInvestigation, 
+    createInvestigation, 
+    fetchInvestigations, 
+    isLoading 
+  } = useInvestigationStore();
   const [isInitializing, setIsInitializing] = useState(true);
   
   useEffect(() => {
     // Initialize PrismJS
     Prism.highlightAll();
     
-    // Auto-create a pipeline on first load
-    const initializePipeline = async () => {
-      await fetchPipelines();
+    // Auto-create an investigation on first load
+    const initializeInvestigation = async () => {
+      await fetchInvestigations();
       
-      // If no current pipeline, create one automatically
-      if (!currentPipeline) {
-        await createPipeline({
-          name: 'My Scraping Pipeline',
-          description: 'Ready to scrape the web!'
+      // If no current investigation, create one automatically
+      if (!currentInvestigation) {
+        await createInvestigation({
+          title: 'New OSINT Investigation',
+          description: 'Conducting intelligence assessment',
+          classification: 'CONFIDENTIAL',
+          priority: 'MEDIUM'
         });
       }
       
@@ -36,14 +42,14 @@ function App() {
       }, 500);
     };
     
-    initializePipeline();
+    initializeInvestigation();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize WebSocket connection
-  useWebSocket(currentPipeline?.id || 'default');
+  useWebSocket(currentInvestigation?.id || 'default');
 
   // Show loading screen during initialization
-  if (isInitializing || (isLoading && !currentPipeline)) {
+  if (isInitializing || (isLoading && !currentInvestigation)) {
     return <LoadingScreen />;
   }
 
@@ -54,7 +60,7 @@ function App() {
         <SplitView />
       </div>
       <StatusBar />
-      <ApprovalManager />
+      {/* ApprovalManager is now integrated in AgentCoordinator */}
     </div>
   );
 }

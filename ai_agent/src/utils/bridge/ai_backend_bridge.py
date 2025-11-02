@@ -12,7 +12,21 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
 
-from ...workflow.state import InvestigationState, InvestigationPhase, InvestigationStatus
+# Using dynamic import to avoid circular import issues
+import importlib.util
+import os
+
+# Import the state module dynamically
+state_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'workflow', 'state.py')
+spec = importlib.util.spec_from_file_location("state", state_module_path)
+if spec is not None and spec.loader is not None:
+    state_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(state_module)
+    InvestigationState = state_module.InvestigationState
+    InvestigationPhase = state_module.InvestigationPhase
+    InvestigationStatus = state_module.InvestigationStatus
+else:
+    raise ImportError("Could not load state module")
 
 # Dynamically import the BackendScrapingClient to avoid import issues
 import importlib.util

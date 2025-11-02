@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
-import { usePipelineStore } from '../../store/pipelineStore';
+ import { useInvestigationStore } from '../../store/investigationStore';
 import Button from '../Common/Button';
 
 type ViewMode = 'table' | 'json';
 
 const OutputDisplay: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const { currentPipeline, executionResults } = usePipelineStore();
+  const { currentInvestigation } = useInvestigationStore();
 
   const renderTableView = () => {
-    if (!executionResults || executionResults.length === 0) return null;
+    const evidence = currentInvestigation?.collected_evidence || [];
+    
+    if (!evidence || evidence.length === 0) return null;
 
-    // Get all unique keys from results
+    // Get all unique keys from evidence content
     const allKeys = new Set<string>();
-    executionResults.forEach(result => {
-      if (result.success && result.data) {
-        Object.keys(result.data).forEach(key => allKeys.add(key));
+    evidence.forEach(item => {
+      if (item.content.type === 'structured' && typeof item.content.value === 'object') {
+        Object.keys(item.content.value).forEach(key => allKeys.add(key));
       }
     });
 
@@ -26,7 +28,10 @@ const OutputDisplay: React.FC = () => {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-border">
-              <th className="p-2 text-left text-sm font-medium text-muted">URL</th>
+              <th className="p-2 text-left text-sm font-medium text-muted">ID</th>
+              <th className="p-2 text-left text-sm font-medium text-muted">Type</th>
+              <th className="p-2 text-left text-sm font-medium text-muted">Source</th>
+              <th className="p-2 text-left text-sm font-medium text-muted">Reliability</th>
               {keys.map(key => (
                 <th key={key} className="p-2 text-left text-sm font-medium text-muted">
                   {key}
@@ -35,27 +40,31 @@ const OutputDisplay: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {executionResults.map((result, index) => (
-              <tr key={index} className="border-b border-border hover:bg-secondary/50">
+            {evidence.map((item, index) => (
+              <tr key={item.id} className="border-b border-border hover:bg-secondary/50">
                 <td className="p-2 text-sm">
-                  <a
-                    href={result.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:underline"
-                  >
-                    {new URL(result.url).hostname}
-                  </a>
+                  {item.id.substring(0, 8)}...
                 </td>
-                {result.success ? (
+                <td className="p-2 text-sm">
+                  {item.source_type}
+                </td>
+                <td className="p-2 text-sm">
+                  {item.source}
+                </td>
+                <td className="p-2 text-sm">
+                  {item.reliability_score}%
+                </td>
+                {item.content.type === 'structured' && typeof item.content.value === 'object' && !Array.isArray(item.content.value) && item.content.value !== null ? (
                   keys.map(key => (
                     <td key={key} className="p-2 text-sm">
-                      {result.data[key] || '-'}
+                      {item.content.value && typeof item.content.value === 'object' && key in item.content.value 
+                        ? (item.content.value as Record<string, any>)[key] 
+                        : '-'}
                     </td>
                   ))
                 ) : (
-                  <td colSpan={keys.length} className="p-2 text-sm text-error">
-                    Error: {result.error}
+                  <td colSpan={keys.length} className="p-2 text-sm">
+                    {item.content.summary || (typeof item.content.value === 'string' ? item.content.value : JSON.stringify(item.content.value)) || '-'}
                   </td>
                 )}
               </tr>
@@ -66,38 +75,41 @@ const OutputDisplay: React.FC = () => {
     );
   };
 
-  const renderJsonView = () => {
-    return (
-      <pre className="language-json overflow-auto">
-        <code>
-          {JSON.stringify(executionResults, null, 2)}
-        </code>
-      </pre>
-    );
-  };
-
   const handleExport = (format: 'json' | 'csv') => {
-    if (!executionResults || executionResults.length === 0) return;
+    const evidence = currentInvestigation?.collected_evidence || [];
+    if (!evidence || evidence.length === 0) return;
 
     let content: string;
     let mimeType: string;
     let extension: string;
 
     if (format === 'json') {
-      content = JSON.stringify(executionResults, null, 2);
+      content = JSON.stringify(evidence, null, 2);
       mimeType = 'application/json';
       extension = 'json';
     } else {
       // CSV export
-      const successful = executionResults.filter(r => r.success);
-      if (successful.length === 0) return;
+      if (evidence.length === 0) return;
 
-      const keys = Object.keys(successful[0].data);
+      // Create CSV from evidence data
+      const keys = ['id', 'source_type', 'source', 'reliability_score', 'created_at'];
       const csv = [
-        ['URL', ...keys].join(','),
-        ...successful.map(r =>
-          [r.url, ...keys.map(k => JSON.stringify(r.data[k] || ''))].join(',')
-        )
+        ['ID', 'Type', 'Source', 'Reliability', 'Date', ...keys].join(','),
+        ...evidence.map(item => {
+          const basicData = [
+            item.id.substring(0, 16),
+            item.source_type,
+            item.source,
+            item.reliability_score,
+            new Date(item.collected_at).toLocaleDateString()
+          ];
+          
+          if (item.content.type === 'structured' && typeof item.content.value === 'object' && !Array.isArray(item.content.value) && item.content.value !== null) {
+            return [...basicData, ...keys.map(k => JSON.stringify((item.content.value as Record<string, any>)[k] || ''))].join(',');
+          } else {
+            return [...basicData, ...keys.map(() => JSON.stringify(typeof item.content.value === 'string' ? item.content.value : JSON.stringify(item.content.value) || ''))].join(',');
+          }
+        })
       ].join('\n');
 
       content = csv;
@@ -109,41 +121,57 @@ const OutputDisplay: React.FC = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${currentPipeline?.name.replace(/\s+/g, '_')}_results.${extension}`;
+     a.download = `${currentInvestigation?.title.replace(/\s+/g, '_')}_evidence.${extension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
 
-  if (!executionResults || executionResults.length === 0) {
+  const evidence = currentInvestigation?.collected_evidence || [];
+  if (!evidence || evidence.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <div className="text-center text-muted">
-          <p className="text-lg mb-2">No results yet</p>
+          <p className="text-lg mb-2">No evidence collected yet</p>
           <p className="text-sm">
-            Execute your pipeline to see the scraped data here
+            Execute your investigation to see the collected intelligence here
           </p>
         </div>
       </div>
     );
   }
 
-  const successCount = executionResults.filter(r => r.success).length;
-  const failureCount = executionResults.filter(r => !r.success).length;
+  const reliableCount = evidence.filter(e => e.reliability_score >= 70).length;
+  const questionableCount = evidence.filter(e => e.reliability_score < 70 && e.reliability_score >= 30).length;
+  const unreliableCount = evidence.filter(e => e.reliability_score < 30).length;
+
+  const renderJsonView = () => {
+    const evidence = currentInvestigation?.collected_evidence || [];
+    return (
+      <pre className="language-json overflow-auto">
+        <code>
+          {JSON.stringify(evidence, null, 2)}
+        </code>
+      </pre>
+    );
+  };
 
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border">
-        <div className="flex items-center space-x-4">
-          <h3 className="text-lg font-semibold">Results</h3>
-          <div className="text-sm text-muted">
-            <span className="text-success">{successCount} successful</span>
-            {failureCount > 0 && (
-              <span className="text-error ml-2">{failureCount} failed</span>
-            )}
-          </div>
-        </div>
+         <div className="flex items-center space-x-4">
+           <h3 className="text-lg font-semibold">Collected Evidence</h3>
+           <div className="text-sm text-muted">
+             <span className="text-success">{reliableCount} reliable</span>
+             {questionableCount > 0 && (
+               <span className="text-warning ml-2">{questionableCount} questionable</span>
+             )}
+             {unreliableCount > 0 && (
+               <span className="text-error ml-2">{unreliableCount} unreliable</span>
+             )}
+           </div>
+         </div>
         
         <div className="flex items-center space-x-2">
           <div className="flex rounded-md overflow-hidden">

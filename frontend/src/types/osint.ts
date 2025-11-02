@@ -29,6 +29,12 @@ export interface Investigation {
   updated_at: string;
   completed_at?: string;
   
+  // OSINT Collection Code (for automated collection)
+  code?: string; // Generated OSINT collection code
+  
+  // Sources for OSINT collection
+  sources?: string[]; // URLs or sources for intelligence collection
+  
   // Reporting
   generated_reports: InvestigationReport[];
   final_assessment?: FinalAssessment;
@@ -209,7 +215,7 @@ export interface InvestigationReport {
   investigation_id: string;
   title: string;
   report_type: 'PRELIMINARY' | 'INTERIM' | 'FINAL' | 'EXECUTIVE' | 'TECHNICAL';
-  classification: 'UNCLASSIFIED' | 'CONFIDENTIAL' | 'SECRET';
+  classification: 'UNCLASSIFIED' | 'CONFIDENTIAL' | 'SECRET' | 'TOP_SECRET';
   author: string;
   created_at: string;
   content: ReportContent;

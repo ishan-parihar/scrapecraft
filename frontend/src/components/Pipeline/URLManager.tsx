@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { usePipelineStore } from '../../store/pipelineStore';
+ import { useInvestigationStore } from '../../store/investigationStore';
 import Button from '../Common/Button';
 import Input from '../Common/Input';
 import { api } from '../../services/api';
@@ -7,21 +7,22 @@ import { api } from '../../services/api';
 const URLManager: React.FC = () => {
   const [newUrl, setNewUrl] = useState('');
   const [isValidating, setIsValidating] = useState(false);
-  const { currentPipeline, updatePipeline } = usePipelineStore();
+  const { currentInvestigation, updateInvestigation } = useInvestigationStore();
 
   const handleAddUrl = async () => {
-    if (!newUrl.trim() || !currentPipeline) return;
+     if (!newUrl.trim() || !currentInvestigation) return;
 
     // Validate URL
     setIsValidating(true);
     try {
-      const response = await api.post('/scraping/validate-url', { url: newUrl });
+        const response = await api.post('/scraping/validate-url', { url: newUrl });
       
-      if (response.data.valid) {
-        const updatedUrls = [...currentPipeline.urls, newUrl];
-        updatePipeline(currentPipeline.id, { urls: updatedUrls });
-        setNewUrl('');
-      } else {
+        if (response.data.valid) {
+          const currentSources = currentInvestigation.sources || [];
+          const updatedUrls = [...currentSources, newUrl];
+          updateInvestigation(currentInvestigation.id, { sources: updatedUrls });
+         setNewUrl('');
+       } else {
         alert(`Invalid URL: ${response.data.error || 'URL is not accessible'}`);
       }
     } catch (error) {
@@ -32,10 +33,11 @@ const URLManager: React.FC = () => {
   };
 
   const handleRemoveUrl = (urlToRemove: string) => {
-    if (!currentPipeline) return;
+     if (!currentInvestigation) return;
     
-    const updatedUrls = currentPipeline.urls.filter(url => url !== urlToRemove);
-    updatePipeline(currentPipeline.id, { urls: updatedUrls });
+      const currentSources = currentInvestigation.sources || [];
+      const updatedUrls = currentSources.filter(url => url !== urlToRemove);
+      updateInvestigation(currentInvestigation.id, { sources: updatedUrls });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -46,7 +48,7 @@ const URLManager: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col p-4">
-      <h3 className="text-lg font-semibold mb-4">URL Management</h3>
+       <h3 className="text-lg font-semibold mb-4">Source Management</h3>
       
       {/* Add URL Form */}
       <div className="flex space-x-2 mb-4">
@@ -56,11 +58,11 @@ const URLManager: React.FC = () => {
           onChange={(e) => setNewUrl(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="https://example.com"
-          disabled={!currentPipeline || isValidating}
+          disabled={!currentInvestigation || isValidating}
         />
         <Button
           onClick={handleAddUrl}
-          disabled={!newUrl.trim() || !currentPipeline || isValidating}
+          disabled={!newUrl.trim() || !currentInvestigation || isValidating}
           variant="primary"
         >
           {isValidating ? 'Validating...' : 'Add URL'}
@@ -69,13 +71,13 @@ const URLManager: React.FC = () => {
       
       {/* URL List */}
       <div className="flex-1 overflow-y-auto space-y-2">
-        {currentPipeline?.urls.length === 0 ? (
-          <div className="text-center text-muted py-8">
-            <p>No URLs added yet</p>
-            <p className="text-sm mt-2">Add URLs to start building your scraping pipeline</p>
-          </div>
-        ) : (
-          currentPipeline?.urls.map((url, index) => (
+          {(!currentInvestigation?.sources || currentInvestigation.sources.length === 0) ? (
+           <div className="text-center text-muted py-8">
+             <p>No sources added yet</p>
+             <p className="text-sm mt-2">Add sources to begin your OSINT investigation</p>
+           </div>
+         ) : (
+            (currentInvestigation?.sources || []).map((url, index) => (
             <div
               key={index}
               className="card flex items-center justify-between group"
@@ -105,11 +107,11 @@ const URLManager: React.FC = () => {
       </div>
       
       {/* Summary */}
-      {currentPipeline && currentPipeline.urls.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-border text-sm text-muted">
-          Total URLs: {currentPipeline.urls.length}
-        </div>
-      )}
+        {currentInvestigation && currentInvestigation.sources && currentInvestigation.sources.length > 0 && (
+         <div className="mt-4 pt-4 border-t border-border text-sm text-muted">
+            Total Sources: {currentInvestigation.sources.length}
+         </div>
+       )}
     </div>
   );
 };

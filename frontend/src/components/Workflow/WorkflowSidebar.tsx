@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useWebSocketStore } from '../../store/websocketStore';
-import { usePipelineStore } from '../../store/pipelineStore';
+ import { useInvestigationStore } from '../../store/investigationStore';
 import clsx from 'clsx';
 
 interface WorkflowPhase {
@@ -12,10 +12,10 @@ interface WorkflowPhase {
 }
 
 interface WorkflowState {
-  pipeline_id: string;
+   investigation_id: string;
   phase: string;
-  urls: any[];
-  schema_fields: any[];
+   sources: any[];
+   intelligence_fields: any[];
   generated_code: string;
   pending_approvals: any[];
   phase_transitions: any[];
@@ -23,7 +23,7 @@ interface WorkflowState {
 }
 
 const WorkflowSidebar: React.FC = () => {
-  const { currentPipeline } = usePipelineStore();
+  const { currentInvestigation } = useInvestigationStore();
   const { ws, send } = useWebSocketStore();
   const [workflowState, setWorkflowState] = useState<WorkflowState | null>(null);
 
@@ -38,35 +38,35 @@ const WorkflowSidebar: React.FC = () => {
     {
       id: 'url_collection',
       label: 'Collect URLs',
-      description: 'Find or add URLs to scrape',
+       description: 'Find or add intelligence sources',
       icon: '🔍',
       status: 'pending'
     },
     {
-      id: 'url_validation',
-      label: 'Validate URLs',
-      description: 'Check URL relevance',
+       id: 'source_validation',
+       label: 'Validate Sources',
+       description: 'Check source relevance',
       icon: '✅',
       status: 'pending'
     },
     {
-      id: 'schema_definition',
-      label: 'Define Schema',
-      description: 'Specify data to extract',
+       id: 'intelligence_definition',
+       label: 'Define Intelligence',
+       description: 'Specify intelligence to collect',
       icon: '📋',
       status: 'pending'
     },
     {
-      id: 'schema_validation',
-      label: 'Validate Schema',
-      description: 'Verify schema completeness',
+       id: 'intelligence_validation',
+       label: 'Validate Intelligence',
+       description: 'Verify intelligence completeness',
       icon: '🔍',
       status: 'pending'
     },
     {
       id: 'code_generation',
       label: 'Generate Code',
-      description: 'Create scraping script',
+       description: 'Create intelligence collection script',
       icon: '💻',
       status: 'pending'
     },
@@ -80,27 +80,27 @@ const WorkflowSidebar: React.FC = () => {
     {
       id: 'executing',
       label: 'Execute',
-      description: 'Run the pipeline',
+       description: 'Run the investigation',
       icon: '▶️',
       status: 'pending'
     },
     {
       id: 'completed',
       label: 'Complete',
-      description: 'Pipeline finished',
+       description: 'Investigation finished',
       icon: '✨',
       status: 'pending'
     }
   ];
 
   useEffect(() => {
-    if (currentPipeline && ws) {
+     if (currentInvestigation && ws) {
       // Request current workflow state
       send({
         type: 'state_request'
       });
     }
-  }, [currentPipeline, ws, send]);
+   }, [currentInvestigation, ws, send]);
 
   useEffect(() => {
     // Listen for workflow updates
@@ -229,12 +229,12 @@ const WorkflowSidebar: React.FC = () => {
             <h4 className="font-medium mb-2">Current State</h4>
             <div className="space-y-2 text-sm">
               <div>
-                <span className="text-muted">URLs:</span>{' '}
-                <span className="font-medium">{workflowState.urls.length}</span>
+                 <span className="text-muted">Sources:</span>{' '}
+                 <span className="font-medium">{workflowState.sources.length}</span>
               </div>
               <div>
-                <span className="text-muted">Schema Fields:</span>{' '}
-                <span className="font-medium">{workflowState.schema_fields.length}</span>
+                 <span className="text-muted">Intelligence Fields:</span>{' '}
+                 <span className="font-medium">{workflowState.intelligence_fields.length}</span>
               </div>
               <div>
                 <span className="text-muted">Code:</span>{' '}
