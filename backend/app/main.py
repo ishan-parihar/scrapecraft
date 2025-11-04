@@ -4,20 +4,22 @@ from contextlib import asynccontextmanager
 import logging
 
 from app.config import settings
-from app.api import auth, chat, pipelines, scraping, execution, workflow
 
-# Import OSINT router - will be imported when dependencies are available
-try:
-    from app.api.osint import router as osint_router
-except ImportError:
-    # Delayed import to avoid issues when dependencies aren't installed
-    import importlib
-    osint_module = importlib.import_module("app.api.osint")
-    osint_router = osint_module.router
+# Import routers with proper error handling
+# Temporarily disabling auth due to cryptography dependency issues
+from app.api import pipelines, scraping, execution, workflow
+
+# TODO: Re-enable auth once cryptography dependencies are resolved
+# from app.api import auth
 
 from app.services.websocket import ConnectionManager
 from app.services.workflow_manager import get_workflow_manager
-from app.services.task_storage import task_storage
+# TODO: Re-enable task_storage once redis is available
+# from app.services.task_storage import task_storage
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,22 +32,26 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.VERSION}")
     
-    # Initialize Redis connection
-    try:
-        await task_storage.connect()
-        logger.info("Redis task storage initialized")
-    except Exception as e:
-        logger.error(f"Failed to initialize Redis task storage: {e}")
+    # Skip Redis for now to focus on OSINT integration
+    logger.info("Skipping Redis initialization for development")
+    # TODO: Re-enable once task_storage is available
+    # try:
+    #     await task_storage.connect()
+    #     logger.info("Redis task storage initialized")
+    # except Exception as e:
+    #     logger.warning(f"Failed to initialize Redis task storage: {e}")
+    #     logger.info("Continuing without Redis...")
     
     yield
     
     # Shutdown
     logger.info("Shutting down...")
-    try:
-        await task_storage.disconnect()
-        logger.info("Redis task storage disconnected")
-    except Exception as e:
-        logger.error(f"Error disconnecting Redis: {e}")
+    # TODO: Re-enable once task_storage is available
+    # try:
+    #     await task_storage.disconnect()
+    #     logger.info("Redis task storage disconnected")
+    # except Exception as e:
+    #     logger.error(f"Error disconnecting Redis: {e}")
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -63,19 +69,32 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+# TODO: Re-enable auth router once cryptography dependencies are resolved
+# app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+# app.include_router(chat.router, prefix="/api/chat", tags=["chat"])  # Temporarily disabled
 app.include_router(pipelines.router, prefix="/api/pipelines", tags=["pipelines"])
 app.include_router(scraping.router, prefix="/api/scraping", tags=["scraping"])
 app.include_router(execution.router, prefix="/api/execution", tags=["execution"])
 app.include_router(workflow.router, prefix="/api/workflow", tags=["workflow"])
 
-# Include OSINT router (already imported earlier)
-try:
-    app.include_router(osint_router, prefix="/api/osint", tags=["osint"])
-except NameError:
-    print("OSINT router not available - skipping OSINT API router")
-    pass
+# TODO: Enable AI investigation routers once dependencies are installed
+# Currently disabled due to missing cryptography and other dependencies
+# 
+# try:
+#     from app.api.osint import router as osint_router
+#     app.include_router(osint_router, prefix="/api/osint", tags=["osint"])
+#     logger.info("OSINT router included successfully")
+# except ImportError as e:
+#     logger.warning(f"OSINT router not available: {e}")
+# 
+# try:
+#     from app.api.ai_investigation import router as investigation_router
+#     app.include_router(investigation_router)
+#     logger.info("AI Investigation router included successfully")
+# except ImportError as e:
+#     logger.warning(f"AI Investigation router not available: {e}")
+
+logger.info("AI Investigation routers temporarily disabled - pending dependency installation")
 
 @app.get("/")
 async def root():

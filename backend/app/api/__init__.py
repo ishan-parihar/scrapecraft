@@ -1,9 +1,10 @@
-from . import auth
-from . import chat
+# Temporarily disable problematic imports due to missing dependencies
+# from . import auth  # Requires cryptography
+# from . import chat   # May have dependencies
 from . import pipelines
 from . import scraping
 from . import execution
 from . import workflow
-from . import osint
+# from . import osint   # Requires enhanced websocket and other dependencies
 
-__all__ = ["auth", "chat", "pipelines", "scraping", "execution", "workflow", "osint"]
+__all__ = ["pipelines", "scraping", "execution", "workflow"]

@@ -1,16 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CollectedEvidence } from '../../types/osint';
 
-interface EvidenceViewerProps {}
+interface EvidenceViewerProps {
+  investigationId?: string;
+}
 
-const EvidenceViewer: React.FC<EvidenceViewerProps> = () => {
+const EvidenceViewer: React.FC<EvidenceViewerProps> = ({ investigationId }) => {
   const [selectedEvidence, setSelectedEvidence] = useState<CollectedEvidence | null>(null);
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterReliability, setFilterReliability] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [evidence, setEvidence] = useState<CollectedEvidence[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock evidence data for demonstration
-  const mockEvidence: CollectedEvidence[] = [
+  const loadEvidence = useCallback(async () => {
+    if (!investigationId) return;
+    
+    try {
+      setLoading(true);
+      // This would be a real API call - for now using mock data
+      // const evidenceData = await osintAgentApi.getInvestigationEvidence(investigationId);
+      
+      // Mock evidence data for demonstration
+      const mockEvidence: CollectedEvidence[] = [
     {
       id: 'ev_001',
       investigation_id: 'inv_001',
@@ -18,7 +31,7 @@ const EvidenceViewer: React.FC<EvidenceViewerProps> = () => {
       source_type: 'SOCIAL_MEDIA',
       content: {
         type: 'text',
-        value: 'Important information about the target organization',
+        data: 'Important information about the target organization',
         summary: 'Twitter post mentioning key personnel change'
       },
       metadata: {
@@ -44,7 +57,7 @@ const EvidenceViewer: React.FC<EvidenceViewerProps> = () => {
       source_type: 'SOCIAL_MEDIA',
       content: {
         type: 'structured',
-        value: {
+        data: {
           company: 'ABC Corp',
           employees: 500,
           recent_posts: 12,
@@ -73,15 +86,15 @@ const EvidenceViewer: React.FC<EvidenceViewerProps> = () => {
       investigation_id: 'inv_001',
       source: 'public-records.gov',
       source_type: 'PUBLIC_RECORDS',
-       content: {
-         type: 'structured',
-         value: {
-           name: 'John Smith',
-           filing_date: '2023-09-20',
-           document_type: 'Financial Disclosure'
-         },
-         summary: 'Public financial disclosure filing'
-       },
+content: {
+          type: 'structured',
+          data: {
+            name: 'John Smith',
+            filing_date: '2023-09-20',
+            document_type: 'Financial Disclosure'
+          },
+          summary: 'Public financial disclosure filing'
+        },
       metadata: {
         url: 'https://public-records.gov/filing/12345',
         timestamp: '2023-10-14T14:20:00Z',
@@ -99,14 +112,32 @@ const EvidenceViewer: React.FC<EvidenceViewerProps> = () => {
       data_type: 'DOCUMENT'
     }
   ];
+      
+      setEvidence(mockEvidence);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load evidence:', err);
+      setError('Failed to load evidence');
+      setEvidence([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [investigationId]);
 
-  const filteredEvidence = mockEvidence.filter(evidence => {
-    const matchesType = filterType === 'ALL' || evidence.source_type === filterType;
-    const matchesReliability = evidence.reliability_score >= filterReliability;
+  // Load evidence for the investigation
+  useEffect(() => {
+    if (investigationId) {
+      loadEvidence();
+    }
+  }, [investigationId, loadEvidence]);
+
+  const filteredEvidence = evidence.filter(evidenceItem => {
+    const matchesType = filterType === 'ALL' || evidenceItem.source_type === filterType;
+    const matchesReliability = evidenceItem.reliability_score >= filterReliability;
     const matchesSearch = searchTerm === '' || 
-      evidence.source.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      evidence.content.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      evidence.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      evidenceItem.source.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      evidenceItem.content.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      evidenceItem.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     
     return matchesType && matchesReliability && matchesSearch;
   });
@@ -140,10 +171,60 @@ const EvidenceViewer: React.FC<EvidenceViewerProps> = () => {
     return 'bg-error/20';
   };
 
+  const createMockEvidence = async () => {
+    if (!investigationId) return;
+    
+    try {
+      // This would create via API when endpoint is available
+      // await osintAgentApi.createEvidence(investigationId, evidenceData);
+      
+      // For now, add to local state
+      const newEvidence: CollectedEvidence = {
+        id: `ev-${Date.now()}`,
+        investigation_id: investigationId,
+        source: 'mock-source.com',
+        source_type: 'WEB_CONTENT',
+        content: {
+          type: 'text',
+          data: 'Mock evidence content for demonstration',
+          summary: 'Mock evidence created for testing purposes'
+        },
+        metadata: {
+          url: 'https://mock-source.com/evidence',
+          timestamp: new Date().toISOString(),
+          source_agent: 'test-agent',
+          collection_method: 'manual'
+        },
+        reliability_score: 75,
+        relevance_score: 80,
+        collected_at: new Date().toISOString(),
+        verified: false,
+        classification: 'CONFIDENTIAL',
+        tags: ['mock', 'test'],
+        related_evidence: [],
+        source_confidence: 75,
+        data_type: 'TEXT'
+      };
+      
+      setEvidence(prev => [newEvidence, ...prev]);
+    } catch (err) {
+      console.error('Failed to create evidence:', err);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
       {/* Filters */}
       <div className="p-4 border-b border-border bg-secondary">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-medium">Evidence Collection</h3>
+          <button
+            onClick={createMockEvidence}
+            className="px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded text-sm"
+          >
+            Add Evidence
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Search</label>
@@ -192,67 +273,79 @@ const EvidenceViewer: React.FC<EvidenceViewerProps> = () => {
             </button>
           </div>
         </div>
-      </div>
-      
-      <div className="flex flex-1 overflow-hidden">
-        {/* Evidence List */}
-        <div className="w-1/3 pr-4 border-r border-border overflow-y-auto">
-          <h3 className="font-medium mb-3">Collected Evidence ({filteredEvidence.length})</h3>
-          
-          <div className="space-y-3">
-            {filteredEvidence.map(evidence => (
-              <div 
-                key={evidence.id}
-                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                  selectedEvidence?.id === evidence.id 
-                    ? 'border-primary bg-primary/10' 
-                    : 'border-border hover:bg-secondary'
-                }`}
-                onClick={() => setSelectedEvidence(evidence)}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="font-medium text-sm truncate">{evidence.source}</div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${getSourceTypeColor(evidence.source_type)}`}>
-                    {evidence.source_type.replace('_', ' ')}
-                  </span>
-                </div>
-                
-                <div className="mt-2 text-xs text-muted line-clamp-2">
-                  {evidence.content.summary || 'No summary available'}
-                </div>
-                
-                <div className="flex justify-between items-center mt-3">
-                  <div className={`text-xs px-2 py-1 rounded ${getReliabilityBgColor(evidence.reliability_score)}`}>
-                    <span className={getReliabilityColor(evidence.reliability_score)}>
-                      {evidence.reliability_score}% reliability
-                    </span>
-                  </div>
-                  
-                  <div className="text-xs text-muted">
-                    {new Date(evidence.collected_at).toLocaleDateString()}
-                  </div>
-                </div>
-                
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {evidence.tags.slice(0, 3).map((tag, index) => (
-                    <span key={index} className="text-xs bg-secondary px-2 py-0.5 rounded">
-                      {tag}
-                    </span>
-                  ))}
-                  {evidence.tags.length > 3 && (
-                    <span className="text-xs text-muted">+{evidence.tags.length - 3} more</span>
-                  )}
-                </div>
-              </div>
+</div>
+       
+       <div className="flex flex-1 overflow-hidden">
+         {/* Evidence List */}
+         <div className="w-1/3 pr-4 border-r border-border overflow-y-auto">
+           <h3 className="font-medium mb-3">
+             Collected Evidence ({filteredEvidence.length})
+           </h3>
+           
+           {loading ? (
+             <div className="text-center py-8 text-muted">
+               <p>Loading evidence...</p>
+             </div>
+           ) : error ? (
+             <div className="text-center py-8 text-error">
+               <p>{error}</p>
+             </div>
+           ) : (
+             <div className="space-y-3">
+            {filteredEvidence.map(evidenceItem => (
+<div 
+                 key={evidenceItem.id}
+                 className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                   selectedEvidence?.id === evidenceItem.id 
+                     ? 'border-primary bg-primary/10' 
+                     : 'border-border hover:bg-secondary'
+                 }`}
+                 onClick={() => setSelectedEvidence(evidenceItem)}
+               >
+                 <div className="flex justify-between items-start">
+                   <div className="font-medium text-sm truncate">{evidenceItem.source}</div>
+                   <span className={`text-xs px-2 py-1 rounded-full ${getSourceTypeColor(evidenceItem.source_type)}`}>
+                     {evidenceItem.source_type.replace('_', ' ')}
+                   </span>
+                 </div>
+                 
+                 <div className="mt-2 text-xs text-muted line-clamp-2">
+                   {evidenceItem.content.summary || 'No summary available'}
+                 </div>
+                 
+                 <div className="flex justify-between items-center mt-3">
+                   <div className={`text-xs px-2 py-1 rounded ${getReliabilityBgColor(evidenceItem.reliability_score)}`}>
+                     <span className={getReliabilityColor(evidenceItem.reliability_score)}>
+                       {evidenceItem.reliability_score}% reliability
+                     </span>
+                   </div>
+                   
+                   <div className="text-xs text-muted">
+                     {new Date(evidenceItem.collected_at).toLocaleDateString()}
+                   </div>
+                 </div>
+                 
+                 <div className="mt-2 flex flex-wrap gap-1">
+                   {evidenceItem.tags.slice(0, 3).map((tag, index) => (
+                     <span key={index} className="text-xs bg-secondary px-2 py-0.5 rounded">
+                       {tag}
+                     </span>
+                   ))}
+                   {evidenceItem.tags.length > 3 && (
+                     <span className="text-xs text-muted">+{evidenceItem.tags.length - 3} more</span>
+                   )}
+                 </div>
+               </div>
             ))}
             
-            {filteredEvidence.length === 0 && (
-              <div className="text-center py-8 text-muted">
-                <p>No evidence found</p>
-                <p className="text-sm mt-1">Try different filters</p>
-              </div>
-            )}
-          </div>
+{filteredEvidence.length === 0 && (
+               <div className="text-center py-8 text-muted">
+                 <p>No evidence found</p>
+                 <p className="text-sm mt-1">Try different filters</p>
+               </div>
+             )}
+             </div>
+           )}
         </div>
         
         {/* Evidence Detail */}
@@ -293,11 +386,11 @@ const EvidenceViewer: React.FC<EvidenceViewerProps> = () => {
               <div className="mb-6">
                 <h4 className="font-medium mb-2">Content</h4>
                 <div className="bg-background p-4 rounded border border-border">
-                  <pre className="whitespace-pre-wrap break-words text-sm">
-                    {typeof selectedEvidence.content.value === 'string' 
-                      ? selectedEvidence.content.value 
-                      : JSON.stringify(selectedEvidence.content.value, null, 2)}
-                  </pre>
+<pre className="whitespace-pre-wrap break-words text-sm">
+                     {typeof selectedEvidence.content.data === 'string' 
+                       ? selectedEvidence.content.data 
+                       : JSON.stringify(selectedEvidence.content.data, null, 2)}
+                   </pre>
                 </div>
               </div>
               

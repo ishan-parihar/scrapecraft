@@ -16,8 +16,8 @@ const OutputDisplay: React.FC = () => {
     // Get all unique keys from evidence content
     const allKeys = new Set<string>();
     evidence.forEach(item => {
-      if (item.content.type === 'structured' && typeof item.content.value === 'object') {
-        Object.keys(item.content.value).forEach(key => allKeys.add(key));
+      if (item.content.type === 'structured' && typeof item.content.data === 'object') {
+        Object.keys(item.content.data).forEach(key => allKeys.add(key));
       }
     });
 
@@ -54,17 +54,17 @@ const OutputDisplay: React.FC = () => {
                 <td className="p-2 text-sm">
                   {item.reliability_score}%
                 </td>
-                {item.content.type === 'structured' && typeof item.content.value === 'object' && !Array.isArray(item.content.value) && item.content.value !== null ? (
+                {item.content.type === 'structured' && typeof item.content.data === 'object' && !Array.isArray(item.content.data) && item.content.data !== null ? (
                   keys.map(key => (
                     <td key={key} className="p-2 text-sm">
-                      {item.content.value && typeof item.content.value === 'object' && key in item.content.value 
-                        ? (item.content.value as Record<string, any>)[key] 
+                      {item.content.data && typeof item.content.data === 'object' && key in item.content.data 
+                        ? (item.content.data as Record<string, any>)[key] 
                         : '-'}
                     </td>
                   ))
                 ) : (
                   <td colSpan={keys.length} className="p-2 text-sm">
-                    {item.content.summary || (typeof item.content.value === 'string' ? item.content.value : JSON.stringify(item.content.value)) || '-'}
+                    {item.content.summary || (typeof item.content.data === 'string' ? item.content.data : JSON.stringify(item.content.data)) || '-'}
                   </td>
                 )}
               </tr>
@@ -104,10 +104,10 @@ const OutputDisplay: React.FC = () => {
             new Date(item.collected_at).toLocaleDateString()
           ];
           
-          if (item.content.type === 'structured' && typeof item.content.value === 'object' && !Array.isArray(item.content.value) && item.content.value !== null) {
-            return [...basicData, ...keys.map(k => JSON.stringify((item.content.value as Record<string, any>)[k] || ''))].join(',');
+          if (item.content.type === 'structured' && typeof item.content.data === 'object' && !Array.isArray(item.content.data) && item.content.data !== null) {
+            return [...basicData, ...keys.map(k => JSON.stringify((item.content.data as Record<string, any>)[k] || ''))].join(',');
           } else {
-            return [...basicData, ...keys.map(() => JSON.stringify(typeof item.content.value === 'string' ? item.content.value : JSON.stringify(item.content.value) || ''))].join(',');
+            return [...basicData, ...keys.map(() => JSON.stringify(typeof item.content.data === 'string' ? item.content.data : JSON.stringify(item.content.data) || ''))].join(',');
           }
         })
       ].join('\n');

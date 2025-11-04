@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Investigation, InvestigationTarget, IntelligenceRequirement, CollectedEvidence, ThreatAssessment, InvestigationReport } from '../types/osint';
+import { Investigation, InvestigationTarget, CollectedEvidence, ThreatAssessment, InvestigationReport } from '../types/osint';
 import { api } from '../services/api';
 
 interface InvestigationState {
@@ -178,7 +178,7 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
       try {
         // Note: The backend might not have a specific endpoint for updating targets
         // For now, we'll update the entire investigation as before
-        const { investigations, currentInvestigation } = get();
+        const { investigations } = get();
         const investigation = investigations.find(inv => inv.id === investigationId);
         
         if (!investigation) return;
@@ -214,7 +214,7 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
       try {
         // Note: The backend might not have a specific endpoint for removing targets
         // For now, we'll update the entire investigation as before
-        const { investigations, currentInvestigation } = get();
+        const { investigations } = get();
         const investigation = investigations.find(inv => inv.id === investigationId);
         
         if (!investigation) return;
@@ -293,7 +293,7 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
       try {
         // Note: The backend might not have a specific endpoint for updating evidence
         // For now, we'll update the entire investigation as before
-        const { investigations, currentInvestigation } = get();
+        const { investigations } = get();
         const investigation = investigations.find(inv => inv.id === investigationId);
         
         if (!investigation) return;
@@ -325,19 +325,19 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
      }
    },
 
-   addThreatAssessment: async (investigationId, threat) => {
-      try {
-        // Add threat via dedicated endpoint
-        const response = await api.post(`/osint/investigations/${investigationId}/threats`, {
-          title: threat.title,
-          description: threat.description,
-          threat_level: threat.threat_level,
-          threat_type: threat.threat_type,
-          targets: threat.targets,
-          likelihood: threat.likelihood,
-          impact: threat.impact
-          // Note: mitigation_strategies, status, classification, severity are not part of ThreatAssessmentCreate model in backend
-        });
+addThreatAssessment: async (investigationId, threat) => {
+        try {
+          // Add threat via dedicated endpoint
+          const response = await api.post(`/osint/investigations/${investigationId}/threats`, {
+            title: threat.title,
+            description: threat.description,
+            threat_type: threat.threat_type,
+            threat_level: threat.threat_level,
+            targets: threat.targets || [],
+            likelihood: threat.likelihood,
+            impact: threat.impact
+            // Note: other fields may be handled differently by backend
+          });
         
         const newThreat = response.data;
         
@@ -375,7 +375,7 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
       try {
         // Note: The backend might not have a specific endpoint for updating threats
         // For now, we'll update the entire investigation as before
-        const { investigations, currentInvestigation } = get();
+        const { investigations } = get();
         const investigation = investigations.find(inv => inv.id === investigationId);
         
         if (!investigation) return;
@@ -407,9 +407,9 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
      }
    },
 
-   generateReport: async (investigationId, report) => {
-     try {
-       const { investigations, currentInvestigation } = get();
+generateReport: async (investigationId, report) => {
+      try {
+        const { investigations } = get();
        const investigation = investigations.find(inv => inv.id === investigationId);
        
        if (!investigation) return;

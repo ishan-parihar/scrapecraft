@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useChatStore } from '../../../store/chatStore';
-import { useWebSocketStore } from '../../../store/websocketStore';
+
 import { ChatMessage } from '../../../types';
 import MessageList from '../../Chat/MessageList';
 import InputArea from '../../Chat/InputArea';
@@ -11,8 +11,7 @@ interface InvestigationPlannerProps {
 }
 
 const InvestigationPlanner: React.FC<InvestigationPlannerProps> = ({ investigationId }) => {
-  const { messages, addMessage, clearMessages } = useChatStore();
-  const { ws, send } = useWebSocketStore();
+  const { messages, addMessage } = useChatStore();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);

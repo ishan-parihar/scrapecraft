@@ -32,6 +32,26 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     DEBUG: bool = True
     
+    # AI Agent Settings
+    AI_AGENTS_ENABLED: bool = True
+    OSINT_WORKFLOW_ENABLED: bool = True
+    INVESTIGATION_TIMEOUT: int = 3600
+    AGENT_MAX_RETRIES: int = 3
+    AGENT_RETRY_DELAY: float = 1.0
+    
+    # LLM Settings
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    LLM_MODEL: str = "gpt-4-turbo"
+    LLM_TEMPERATURE: float = 0.1
+    LLM_MAX_TOKENS: int = 4000
+    
+    # ScrapeGraphAI Settings
+    SCRAPEGRAPH_LOCAL_MODE: bool = True
+    SCRAPEGRAPH_REASONING_ENABLED: bool = True
+    SCRAPEGRAPH_MAX_DEPTH: int = 3
+    SCRAPEGRAPH_ENGINE: str = "smart_scraper"
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

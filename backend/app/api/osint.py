@@ -21,6 +21,9 @@ from app.models.osint import (
     InvestigationStatus,
     InvestigationClassification,
     InvestigationPriority,
+    AgentAssignment,
+    AgentType,
+    AgentStatus,
 )
 from app.services.websocket import ConnectionManager
 from app.services.enhanced_websocket import enhanced_manager as enhanced_connection_manager
@@ -465,7 +468,7 @@ async def advance_investigation_phase(
         InvestigationPhase.COLLECTION: [InvestigationPhase.ANALYSIS],
         InvestigationPhase.ANALYSIS: [InvestigationPhase.SYNTHESIS],
         InvestigationPhase.SYNTHESIS: [InvestigationPhase.REPORTING],
-        InvestigationPhase.REPORTING: [InvestigationPhase.COMPLETED],
+        InvestigationPhase.REPORTING: [],
     }
     
     if next_phase not in allowed_transitions.get(investigation.current_phase, []):
@@ -490,6 +493,174 @@ async def advance_investigation_phase(
     )
     
     return investigation
+
+
+# Agent Coordination Endpoints
+
+@router.get("/investigations/{investigation_id}/agents")
+async def get_investigation_agents(investigation_id: str):
+    """Get all agents assigned to an investigation."""
+    investigation = investigations_db.get(investigation_id)
+    if not investigation:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    
+    return {
+        "investigation_id": investigation_id,
+        "agents": investigation.assigned_agents,
+        "total_count": len(investigation.assigned_agents)
+    }
+
+@router.post("/investigations/{investigation_id}/agents/assign")
+async def assign_agent_to_investigation(investigation_id: str, agent_assignment: dict):
+    """Assign an agent to an investigation with specific tasks."""
+    investigation = investigations_db.get(investigation_id)
+    if not investigation:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    
+    # Create new agent assignment
+    agent_id = agent_assignment.get("agent_id")
+    if not agent_id:
+        raise HTTPException(status_code=400, detail="agent_id is required")
+    
+    new_assignment = AgentAssignment(
+        agent_id=agent_id,
+        agent_type=AgentType(agent_assignment.get("agent_type", "COLLECTION")),
+        assigned_targets=agent_assignment.get("assigned_targets", []),
+        current_task=agent_assignment.get("current_task"),
+        status=AgentStatus(agent_assignment.get("status", "IDLE")),
+        performance_metrics=agent_assignment.get("performance_metrics", {})
+    )
+    
+    # Add to investigation
+    investigation.assigned_agents.append(new_assignment)
+    investigation.updated_at = datetime.utcnow()
+    
+    # Send WebSocket notification
+    await enhanced_connection_manager.broadcast(
+        f"investigation_{investigation_id}",
+        {
+            "type": "agent:assigned",
+            "investigation_id": investigation_id,
+            "agent_id": new_assignment.agent_id,
+            "agent_type": new_assignment.agent_type.value,
+            "status": new_assignment.status.value
+        }
+    )
+    
+    return new_assignment
+
+@router.put("/agents/{agent_id}/status")
+async def update_agent_status(agent_id: str, status_update: dict):
+    """Update the status of a specific agent."""
+    new_status = AgentStatus(status_update.get("status"))
+    task_details = status_update.get("task_details", {})
+    
+    # Find and update the agent across all investigations
+    updated_agent = None
+    for investigation in investigations_db.values():
+        for agent in investigation.assigned_agents:
+            if agent.agent_id == agent_id:
+                agent.status = new_status
+                agent.updated_at = datetime.utcnow()
+                if task_details:
+                    agent.current_task = task_details
+                updated_agent = agent
+                
+                # Send WebSocket notification
+                await enhanced_connection_manager.broadcast(
+                    f"investigation_{investigation.id}",
+                    {
+                        "type": "agent:status_changed",
+                        "agent_id": agent_id,
+                        "status": new_status.value,
+                        "investigation_id": investigation.id,
+                        "task_details": task_details
+                    }
+                )
+                break
+    
+    if not updated_agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    return updated_agent
+
+@router.post("/agents/{agent_id}/tasks")
+async def assign_task_to_agent(agent_id: str, task_assignment: dict):
+    """Assign a new task to an agent."""
+    task = {
+        "id": str(uuid.uuid4()),
+        "type": task_assignment.get("type"),
+        "description": task_assignment.get("description"),
+        "priority": task_assignment.get("priority", "MEDIUM"),
+        "assigned_at": datetime.utcnow().isoformat(),
+        "status": "PENDING",
+        "details": task_assignment.get("details", {})
+    }
+    
+    # Find and update the agent
+    updated_agent = None
+    investigation_id = None
+    
+    for investigation in investigations_db.values():
+        for agent in investigation.assigned_agents:
+            if agent.agent_id == agent_id:
+                agent.current_task = task
+                agent.status = AgentStatus.ACTIVE
+                agent.updated_at = datetime.utcnow()
+                updated_agent = agent
+                investigation_id = investigation.id
+                
+                # Send WebSocket notification
+                await enhanced_connection_manager.broadcast(
+                    f"investigation_{investigation.id}",
+                    {
+                        "type": "agent:task_assigned",
+                        "agent_id": agent_id,
+                        "task": task,
+                        "investigation_id": investigation.id
+                    }
+                )
+                break
+    
+    if not updated_agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    return updated_agent
+
+@router.get("/agents/{agent_id}/performance")
+async def get_agent_performance(agent_id: str):
+    """Get performance metrics for a specific agent."""
+    agent_info = None
+    investigation_id = None
+    
+    for investigation in investigations_db.values():
+        for agent in investigation.assigned_agents:
+            if agent.agent_id == agent_id:
+                agent_info = agent
+                investigation_id = investigation.id
+                break
+    
+    if not agent_info:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Calculate performance metrics
+    performance = {
+        "agent_id": agent_id,
+        "investigation_id": investigation_id,
+        "agent_type": agent_info.agent_type.value,
+        "current_status": agent_info.status.value,
+        "assigned_at": agent_info.assigned_at.isoformat(),
+        "last_updated": agent_info.updated_at.isoformat(),
+        "current_task": agent_info.current_task,
+        "performance_metrics": agent_info.performance_metrics or {
+            "tasks_completed": 0,
+            "success_rate": 0.0,
+            "average_task_time": 0.0,
+            "error_count": 0
+        }
+    }
+    
+    return performance
 
 
 @router.websocket("/ws/{investigation_id}")

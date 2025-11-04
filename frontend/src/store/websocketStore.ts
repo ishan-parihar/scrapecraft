@@ -18,21 +18,30 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
   connectionStatus: 'disconnected',
   reconnectAttempts: 0,
 
-  connect: (investigationId) => {
+  connect: (investigationId: string) => {
     const { ws, disconnect } = get();
+    
+    // Don't connect if investigationId is not provided or invalid
+    if (!investigationId || investigationId.trim() === '' || investigationId === 'default') {
+      console.log('⚠️ No valid investigation ID provided, skipping WebSocket connection');
+      set({ connectionStatus: 'disconnected' });
+      return;
+    }
     
     // Disconnect existing connection
     if (ws) {
       disconnect();
     }
 
+    console.log(`🔌 Connecting WebSocket for investigation: ${investigationId}`);
     set({ connectionStatus: 'connecting' });
 
     const wsUrl = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
     const websocket = new WebSocket(`${wsUrl}/ws/${investigationId}`);
+    console.log(`🌐 WebSocket URL: ${wsUrl}/ws/${investigationId}`);
 
     websocket.onopen = () => {
-      console.log('OSINT WebSocket connected');
+      console.log('✅ OSINT WebSocket connected successfully!');
       set({ 
         ws: websocket, 
         connectionStatus: 'connected',
@@ -50,11 +59,12 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     };
 
     websocket.onerror = (error) => {
-      console.error('OSINT WebSocket error:', error);
+      console.error('❌ OSINT WebSocket error:', error);
+      console.error('WebSocket state:', websocket.readyState);
     };
 
-    websocket.onclose = () => {
-      console.log('OSINT WebSocket disconnected');
+    websocket.onclose = (event) => {
+      console.log('❌ OSINT WebSocket disconnected:', event.code, event.reason);
       set({ connectionStatus: 'disconnected' });
       
       // Attempt to reconnect

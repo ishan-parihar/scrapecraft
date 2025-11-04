@@ -71,14 +71,12 @@ const Reports: React.FC<ReportsProps> = ({ reports }) => {
               </div>
               
               {report.content && (
-                <div className="mt-4">
-                  <p className="text-sm text-muted">Content Preview</p>
-                  <div className="mt-1 p-3 bg-background border border-border rounded text-sm max-h-24 overflow-y-auto">
-                    {typeof report.content === 'string' 
-                      ? report.content.substring(0, 150) + '...' 
-                      : JSON.stringify(report.content).substring(0, 150) + '...'}
-                  </div>
+              <div className="mt-4">
+                <p className="text-sm text-muted">Summary</p>
+                <div className="mt-1 p-3 bg-background border border-border rounded text-sm max-h-24 overflow-y-auto">
+                  {report.content.executive_summary.substring(0, 150) + '...'}
                 </div>
+              </div>
               )}
               
               <div className="mt-4 flex space-x-3">

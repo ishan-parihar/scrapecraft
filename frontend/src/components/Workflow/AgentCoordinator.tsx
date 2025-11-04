@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useWebSocketStore } from '../../store/websocketStore';
 import { useInvestigationStore } from '../../store/investigationStore';
-import clsx from 'clsx';
+import { osintAgentApi, AgentAssignment } from '../../services/osintAgentApi';
 
 interface AgentStatusCardProps {
-  agent: any;
+  agent: AgentAssignment;
   onTaskAssign: (task: any) => void;
   onStatusChange: (status: string) => void;
 }
@@ -20,93 +20,46 @@ const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ agent, onTaskAssign, 
         return 'bg-error/20 border-error';
       case 'COMPLETED':
         return 'bg-success/20 border-success';
+      case 'BUSY':
+        return 'bg-warning/20 border-warning';
       default:
         return 'bg-secondary border-border';
     }
   };
 
+  const performance = agent.performance_metrics || {};
+  
   return (
     <div className={`p-3 rounded-lg border ${getStatusColor(agent.status)}`}>
       <div className="flex items-center justify-between mb-2">
-        <div className="font-medium text-sm">{agent.name || agent.id}</div>
-        <div className={`w-3 h-3 rounded-full ${
+        <div className="font-medium text-sm truncate">{agent.agent_id}</div>
+        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
           agent.status === 'ACTIVE' ? 'bg-success animate-pulse' : 
-          agent.status === 'ERROR' ? 'bg-error' : 'bg-muted'
+          agent.status === 'ERROR' ? 'bg-error' : 
+          agent.status === 'BUSY' ? 'bg-warning' : 'bg-muted'
         }`}></div>
       </div>
-      <div className="text-xs text-muted mb-2 capitalize">{agent.type || agent.agent_type}</div>
-      <div className="text-xs mb-2">
-        <div>Tasks: {agent.tasks_completed || 0}</div>
-        <div>Success: {agent.success_rate || 0}%</div>
+      <div className="text-xs text-muted mb-2 capitalize">{agent.agent_type}</div>
+      <div className="text-xs mb-3">
+        <div>Tasks: {performance.tasks_completed || 0}</div>
+        <div>Success: {Math.round(performance.success_rate || 0)}%</div>
       </div>
-      <button 
-        className="w-full text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1 rounded"
-        onClick={() => onTaskAssign({ agent_id: agent.id, type: 'COLLECTION' })}
-      >
-        Assign Task
-      </button>
-    </div>
-  );
-};
-
-interface TaskProgressCardProps {
-  task: any;
-  onCancel: () => void;
-  onPriorityChange: (priority: string) => void;
-}
-
-const TaskProgressCard: React.FC<TaskProgressCardProps> = ({ task, onCancel, onPriorityChange }) => {
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'CRITICAL':
-        return 'border-red-500';
-      case 'HIGH':
-        return 'border-orange-500';
-      case 'MEDIUM':
-        return 'border-yellow-500';
-      default:
-        return 'border-border';
-    }
-  };
-
-  return (
-    <div className={`p-3 rounded border ${getPriorityColor(task.priority)}`}>
-      <div className="flex justify-between items-start mb-1">
-        <div className="font-medium text-sm truncate">{task.description}</div>
-        <span className={`text-xs px-2 py-1 rounded ${
-          task.status === 'COMPLETED' ? 'bg-success/20 text-success' :
-          task.status === 'FAILED' ? 'bg-error/20 text-error' :
-          'bg-warning/20 text-warning'
-        }`}>
-          {task.status}
-        </span>
-      </div>
-      <div className="flex justify-between text-xs text-muted mb-2">
-        <span>{task.agent_id}</span>
-        <span>{task.progress || 0}%</span>
-      </div>
-      <div className="w-full bg-secondary rounded-full h-1.5 mb-2">
-        <div 
-          className="bg-primary h-1.5 rounded-full" 
-          style={{ width: `${task.progress || 0}%` }}
-        ></div>
-      </div>
-      <div className="flex space-x-2">
+      <div className="space-y-2">
         <button 
-          className="text-xs bg-error/20 hover:bg-error/30 text-error px-2 py-1 rounded"
-          onClick={onCancel}
+          className="w-full text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1 rounded"
+          onClick={() => onTaskAssign(agent)}
         >
-          Cancel
+          Assign Task
         </button>
         <select 
-          className="text-xs bg-secondary border border-border rounded px-2 py-1"
-          value={task.priority}
-          onChange={(e) => onPriorityChange(e.target.value)}
+          className="w-full text-xs bg-secondary border border-border rounded px-2 py-1"
+          value={agent.status}
+          onChange={(e) => onStatusChange(e.target.value)}
         >
-          <option value="LOW">Low</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="HIGH">High</option>
-          <option value="CRITICAL">Critical</option>
+          <option value="IDLE">Idle</option>
+          <option value="ACTIVE">Active</option>
+          <option value="BUSY">Busy</option>
+          <option value="ERROR">Error</option>
         </select>
       </div>
     </div>
@@ -115,7 +68,7 @@ const TaskProgressCard: React.FC<TaskProgressCardProps> = ({ task, onCancel, onP
 
 const CoordinationEventLog: React.FC<{ events: any[] }> = ({ events }) => {
   return (
-    <div className="bg-background/50 rounded p-3">
+    <div className="bg-background/50 rounded p-3 flex-shrink-0">
       <h4 className="font-medium mb-2 text-sm">Recent Events</h4>
       <div className="space-y-1 max-h-32 overflow-y-auto text-xs">
         {events.length > 0 ? (
@@ -132,191 +85,251 @@ const CoordinationEventLog: React.FC<{ events: any[] }> = ({ events }) => {
   );
 };
 
-interface WorkflowPhase {
-  id: string;
-  label: string;
-  description: string;
-  icon: string;
-  status: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'FAILED';
-}
 
-interface InvestigationPhase {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  status: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'FAILED';
-  progress: number;
-  agents_involved: string[];
-}
 
 const AgentCoordinator: React.FC = () => {
   const { currentInvestigation } = useInvestigationStore();
-  const { ws, send } = useWebSocketStore();
+  const { connectionStatus, connect, disconnect } = useWebSocketStore();
   
-  // Mock data for demonstration
-  const mockAgents = [
-    {
-      id: 'planning_agent_1',
-      name: 'Planning Agent',
-      type: 'PLANNING',
-      status: 'ACTIVE',
-      tasks_completed: 5,
-      success_rate: 95
-    },
-    {
-      id: 'collection_agent_1',
-      name: 'Collection Agent',
-      type: 'COLLECTION',
-      status: 'IDLE',
-      tasks_completed: 12,
-      success_rate: 87
-    },
-    {
-      id: 'analysis_agent_1',
-      name: 'Analysis Agent',
-      type: 'ANALYSIS',
-      status: 'ACTIVE',
-      tasks_completed: 8,
-      success_rate: 92
-    },
-    {
-      id: 'synthesis_agent_1',
-      name: 'Synthesis Agent',
-      type: 'SYNTHESIS',
-      status: 'IDLE',
-      tasks_completed: 3,
-      success_rate: 100
+  // State for real data
+  const [agents, setAgents] = useState<AgentAssignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [events, setEvents] = useState<any[]>([]);
+
+  const addEvent = (message: string) => {
+    setEvents(prev => [{ timestamp: new Date().toLocaleTimeString(), message }, ...prev].slice(0, 50));
+  };
+
+  const loadAgents = useCallback(async () => {
+    if (!currentInvestigation?.id) return;
+    
+    try {
+      setLoading(true);
+      const data = await osintAgentApi.getInvestigationAgents(currentInvestigation.id);
+      setAgents(data.agents || []);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load agents:', err);
+      setError('Failed to load agents');
+      setAgents([]);
+    } finally {
+      setLoading(false);
     }
-  ];
-  
-  const mockTasks = [
-    {
-      id: 'task_1',
-      agent_id: 'collection_agent_1',
-      description: 'Collect social media profiles',
-      status: 'IN_PROGRESS',
-      priority: 'HIGH',
-      progress: 75
-    },
-    {
-      id: 'task_2',
-      agent_id: 'analysis_agent_1',
-      description: 'Analyze collected evidence',
-      status: 'PENDING',
-      priority: 'MEDIUM',
-      progress: 0
+  }, [currentInvestigation?.id]);
+
+  const loadDefaultInvestigation = async () => {
+    try {
+      const investigations = await osintAgentApi.getInvestigations();
+      if (investigations.length > 0) {
+        const data = await osintAgentApi.getInvestigationAgents(investigations[0].id);
+        setAgents(data.agents || []);
+      }
+    } catch (err) {
+      console.error('Failed to load default investigation:', err);
+      setError('Failed to load investigation data');
+      setAgents([]);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  // Load agents for current investigation
+  useEffect(() => {
+    if (currentInvestigation?.id) {
+      loadAgents();
+      // Connect to WebSocket for real-time updates
+      connect(currentInvestigation.id);
+    } else {
+      // Load default investigation if none selected
+      loadDefaultInvestigation();
+    }
+    
+    // Cleanup WebSocket on unmount
+    return () => {
+      disconnect();
+    };
+  }, [currentInvestigation?.id, connect, disconnect, loadAgents]);
+
+  // Listen for WebSocket events
+  useEffect(() => {
+    const handleAgentEvent = (event: CustomEvent) => {
+      const { detail } = event;
+      addEvent(`${detail.type}: ${detail.agent_id || detail.investigation_id}`);
+      
+      // Reload agents if this was an agent-related event
+      if (detail.type?.includes('agent') && currentInvestigation?.id) {
+        loadAgents();
+      }
+    };
+
+    window.addEventListener('websocket-error', handleAgentEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('websocket-error', handleAgentEvent as EventListener);
+    };
+  }, [currentInvestigation?.id, loadAgents]);
   
-  const mockEvents = [
-    { timestamp: '10:30:15', message: 'Collection Agent started gathering data from Twitter' },
-    { timestamp: '10:25:42', message: 'Analysis Agent completed threat assessment' },
-    { timestamp: '10:20:18', message: 'Planning Agent defined new intelligence requirement' },
-    { timestamp: '10:15:33', message: 'Synthesis Agent linked evidence items 12 and 15' },
-    { timestamp: '10:10:50', message: 'Collection Agent verified source reliability' }
-  ];
   
-  const phases: InvestigationPhase[] = [
-    { id: 'planning', name: 'Planning', description: 'Define investigation scope', icon: '📋', status: 'COMPLETED', progress: 100, agents_involved: ['planning_agent_1'] },
-    { id: 'reconnaissance', name: 'Reconnaissance', description: 'Initial information gathering', icon: '🔍', status: 'ACTIVE', progress: 65, agents_involved: ['collection_agent_1'] },
-    { id: 'collection', name: 'Collection', description: 'Systematic evidence collection', icon: '📥', status: 'PENDING', progress: 0, agents_involved: [] },
-    { id: 'analysis', name: 'Analysis', description: 'Analyze collected evidence', icon: '🔬', status: 'PENDING', progress: 0, agents_involved: [] },
-    { id: 'synthesis', name: 'Synthesis', description: 'Synthesize findings', icon: '🧩', status: 'PENDING', progress: 0, agents_involved: [] },
-    { id: 'reporting', name: 'Reporting', description: 'Generate reports', icon: '📄', status: 'PENDING', progress: 0, agents_involved: [] }
-  ];
 
-  const handleTaskAssign = (task: any) => {
-    console.log('Assigning task:', task);
-    // In a real implementation, this would send the task assignment to the backend
+  const handleTaskAssign = async (agent: AgentAssignment) => {
+    try {
+      const task = {
+        type: 'collection',
+        description: 'Collect evidence from assigned targets',
+        priority: 'MEDIUM' as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+      };
+      
+      await osintAgentApi.assignTask(agent.agent_id, task);
+      addEvent(`Task assigned to ${agent.agent_id}`);
+      // Reload agents to get updated status
+      if (currentInvestigation?.id) {
+        await loadAgents();
+      }
+    } catch (err) {
+      console.error('Failed to assign task:', err);
+      addEvent(`Failed to assign task to ${agent.agent_id}`);
+    }
   };
 
-  const handleStatusChange = (status: string) => {
-    console.log('Changing agent status to:', status);
+  const handleStatusChange = async (agent: AgentAssignment, newStatus: string) => {
+    try {
+      await osintAgentApi.updateAgentStatus(agent.agent_id, { 
+        status: newStatus as any,
+        task_details: agent.current_task 
+      });
+      addEvent(`${agent.agent_id} status changed to ${newStatus}`);
+      // Reload agents to get updated status
+      if (currentInvestigation?.id) {
+        await loadAgents();
+      }
+    } catch (err) {
+      console.error('Failed to update agent status:', err);
+      addEvent(`Failed to update ${agent.agent_id} status`);
+    }
   };
 
-  const handleTaskCancel = (taskId: string) => {
-    console.log('Cancelling task:', taskId);
-  };
-
-  const handlePriorityChange = (taskId: string, priority: string) => {
-    console.log('Changing task priority:', taskId, priority);
+  const handleAssignNewAgent = async () => {
+    if (!currentInvestigation?.id) return;
+    
+    try {
+      const newAgent = {
+        agent_id: `agent-${Date.now()}`,
+        agent_type: 'COLLECTION',
+        status: 'IDLE'
+      };
+      
+      await osintAgentApi.assignAgent(currentInvestigation.id, newAgent);
+      addEvent(`New agent ${newAgent.agent_id} assigned to investigation`);
+      // Reload agents to get updated list
+      await loadAgents();
+    } catch (err) {
+      console.error('Failed to assign new agent:', err);
+      addEvent('Failed to assign new agent');
+    }
   };
 
   return (
-    <div className="w-80 bg-secondary p-4 border-r border-border flex flex-col h-full">
-      <h3 className="text-lg font-semibold mb-4">Agent Coordination</h3>
-      
-      {/* Investigation Phases */}
-      <div className="mb-6">
-        <h4 className="font-medium mb-3">Investigation Phases</h4>
-        <div className="space-y-2">
-          {phases.map((phase, index) => (
-            <div key={phase.id} className="p-2 bg-background rounded border border-border">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center">
-                  <span className="mr-2">{phase.icon}</span>
-                  <span className="text-sm font-medium">{phase.name}</span>
-                </div>
-                <span className={`text-xs px-2 py-0.5 rounded ${
-                  phase.status === 'COMPLETED' ? 'bg-success/20 text-success' :
-                  phase.status === 'ACTIVE' ? 'bg-primary/20 text-primary' :
-                  phase.status === 'FAILED' ? 'bg-error/20 text-error' : 'bg-muted/20 text-muted'
-                }`}>
-                  {phase.status}
-                </span>
-              </div>
-              {phase.status !== 'PENDING' && (
-                <div className="w-full bg-secondary rounded-full h-1.5 mb-1">
-                  <div 
-                    className="bg-primary h-1.5 rounded-full" 
-                    style={{ width: `${phase.progress}%` }}
-                  ></div>
-                </div>
-              )}
-              <div className="text-xs text-muted">
-                {phase.agents_involved.length} agents assigned
-              </div>
-            </div>
-          ))}
+    <div className="w-full h-full bg-secondary border-r border-border flex flex-col">
+      <div className="p-4 flex-shrink-0 border-b border-border">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Agent Coordination</h3>
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${
+              connectionStatus === 'connected' ? 'bg-success animate-pulse' : 
+              connectionStatus === 'connecting' ? 'bg-warning animate-pulse' : 'bg-error'
+            }`}></div>
+            <button
+              onClick={handleAssignNewAgent}
+              className="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1 rounded"
+            >
+              Assign Agent
+            </button>
+          </div>
         </div>
+        {currentInvestigation && (
+          <div className="text-xs text-muted mt-1">
+            Investigation: {currentInvestigation.title || currentInvestigation.id} | 
+            Connection: {connectionStatus}
+          </div>
+        )}
       </div>
       
-      {/* Agent Status Grid */}
-      <div className="mb-6">
-        <h4 className="font-medium mb-3">Active Agents</h4>
-        <div className="grid grid-cols-2 gap-3">
-          {mockAgents.map(agent => (
-            <AgentStatusCard 
-              key={agent.id}
-              agent={agent}
-              onTaskAssign={handleTaskAssign}
-              onStatusChange={handleStatusChange}
-            />
-          ))}
-        </div>
-      </div>
-      
-      {/* Active Tasks */}
-      <div className="mb-6 flex-1 min-h-0">
-        <h4 className="font-medium mb-3">Active Tasks</h4>
-        <div className="space-y-2 max-h-60 overflow-y-auto">
-          {mockTasks.map(task => (
-            <TaskProgressCard 
-              key={task.id}
-              task={task}
-              onCancel={() => handleTaskCancel(task.id)}
-              onPriorityChange={(priority) => handlePriorityChange(task.id, priority)}
-            />
-          ))}
-          {mockTasks.length === 0 && (
-            <div className="text-sm text-muted italic p-4 text-center">No active tasks</div>
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto p-4 space-y-6">
+          {loading ? (
+            <div className="text-sm text-muted p-4 text-center">Loading agents...</div>
+          ) : error ? (
+            <div className="text-sm text-error p-4 text-center">{error}</div>
+          ) : (
+            <>
+              {/* Agent Status Grid */}
+              <div>
+                <h4 className="font-medium mb-3">
+                  Active Agents ({agents.length})
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {agents.map(agent => (
+                    <AgentStatusCard 
+                      key={agent.agent_id}
+                      agent={agent}
+                      onTaskAssign={() => handleTaskAssign(agent)}
+                      onStatusChange={(status) => handleStatusChange(agent, status)}
+                    />
+                  ))}
+                  {agents.length === 0 && (
+                    <div className="col-span-2 text-sm text-muted italic p-4 text-center">
+                      No agents assigned to this investigation
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Current Tasks from agents */}
+              <div>
+                <h4 className="font-medium mb-3">Current Tasks</h4>
+                <div className="space-y-2">
+                  {agents
+                    .filter(agent => agent.current_task)
+                    .map(agent => (
+                      <div key={agent.agent_id} className="p-3 bg-background rounded border border-border">
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="font-medium text-sm">{agent.agent_id}</div>
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            agent.status === 'ACTIVE' ? 'bg-primary/20 text-primary' :
+                            agent.status === 'ERROR' ? 'bg-error/20 text-error' :
+                            'bg-muted/20 text-muted'
+                          }`}>
+                            {agent.status}
+                          </span>
+                        </div>
+                        {agent.current_task && (
+                          <div className="text-xs text-muted">
+                            <div className="mb-1">
+                              <strong>Task:</strong> {agent.current_task.description || 'No description'}
+                            </div>
+                            <div className="mb-1">
+                              <strong>Type:</strong> {agent.current_task.type || 'Unknown'}
+                            </div>
+                            <div>
+                              <strong>Priority:</strong> {agent.current_task.priority || 'MEDIUM'}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  {agents.filter(agent => agent.current_task).length === 0 && (
+                    <div className="text-sm text-muted italic p-4 text-center">No active tasks</div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
+          
+          {/* Coordination Events */}
+          <CoordinationEventLog events={events} />
         </div>
       </div>
-      
-      {/* Coordination Events */}
-      <CoordinationEventLog events={mockEvents} />
     </div>
   );
 };

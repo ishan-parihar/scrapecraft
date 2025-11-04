@@ -45,8 +45,8 @@ function App() {
     initializeInvestigation();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialize WebSocket connection
-  useWebSocket(currentInvestigation?.id || 'default');
+  // Initialize WebSocket connection - only connect when we have a real investigation
+  useWebSocket(currentInvestigation?.id || '');
 
   // Show loading screen during initialization
   if (isInitializing || (isLoading && !currentInvestigation)) {

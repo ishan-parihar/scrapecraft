@@ -8,6 +8,7 @@ class InvestigationClassification(str, Enum):
     UNCLASSIFIED = "UNCLASSIFIED"
     CONFIDENTIAL = "CONFIDENTIAL"
     SECRET = "SECRET"
+    TOP_SECRET = "TOP_SECRET"
 
 
 class InvestigationPriority(str, Enum):

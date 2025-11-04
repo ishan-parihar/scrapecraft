@@ -2,9 +2,20 @@ import React, { useState } from 'react';
 import Button from '../Common/Button';
 import SettingsModal from '../Settings/SettingsModal';
 import logo from '../../assets/logo.png';
+import { useInvestigationStore } from '../../store/investigationStore';
 
 const Header: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { createInvestigation } = useInvestigationStore();
+
+  const handleNewInvestigation = async () => {
+    await createInvestigation({
+      title: 'New OSINT Investigation',
+      description: 'Conducting intelligence assessment',
+      classification: 'UNCLASSIFIED',
+      priority: 'MEDIUM'
+    });
+  };
 
   // Mock investigation data for demonstration
   const currentInvestigation = {
@@ -31,6 +42,7 @@ const Header: React.FC = () => {
         <Button
           variant="secondary"
           size="sm"
+          onClick={handleNewInvestigation}
         >
           New Investigation
         </Button>

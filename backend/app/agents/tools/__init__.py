@@ -1,1 +1,3 @@
-# LangChain tools for ScrapeGraphAI integration
+"""
+Tools package for the OSINT agent framework.
+"""

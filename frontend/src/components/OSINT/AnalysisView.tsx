@@ -83,7 +83,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ evidence, analysisResults }
                   
                   <div className="mt-2 text-sm">
                     <pre className="whitespace-pre-wrap break-words text-xs">
-                      {JSON.stringify(result.results, null, 2).substring(0, 200) + '...'}
+                      {JSON.stringify(result.result, null, 2).substring(0, 200) + '...'}
                     </pre>
                   </div>
                   

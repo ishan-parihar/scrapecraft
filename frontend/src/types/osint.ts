@@ -122,11 +122,13 @@ export interface CollectedEvidence {
 }
 
 export interface EvidenceContent {
-  type: 'text' | 'structured' | 'file' | 'link';
-  value: string | Record<string, any> | FileReference;
+  type: string;
+  data: string | Record<string, any> | FileReference;
+  value?: string | Record<string, any>; // Added for backward compatibility with components
   summary?: string;
   extracted_text?: string;
   language?: string;
+  tags?: string[];
 }
 
 export interface EvidenceMetadata {
@@ -167,21 +169,27 @@ export interface AnalysisResult {
 export interface ThreatAssessment {
   id: string;
   investigation_id: string;
-  target_id: string;
-  threat_type: 'CYBER' | 'PHYSICAL' | 'FINANCIAL' | 'REPUTATIONAL' | 'INTELLECTUAL_PROPERTY' | 'OPERATIONAL';
-  threat_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  probability: number; // 0-100
-  impact: number; // 0-100
-  risk_score: number; // 0-100
+  title: string;
   description: string;
-  indicators: string[];
-  timeline: string; // estimated timeframe
-  analyst: string;
-  assessed_at: string;
-  status: 'PENDING' | 'ACTIVE' | 'MITIGATED' | 'MONITORING';
-  recommendations: string[];
-  related_threats: string[];
-  metadata?: Record<string, any>;
+  threat_type: string; // cyber, physical, reputational, etc.
+  threat_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  targets: string[]; // target IDs
+  likelihood: number; // 0.0 to 1.0
+  impact: number; // 0.0 to 1.0
+  risk_score: number; // 0.0 to 1.0 (calculated)
+  status: string; // ACTIVE, MONITORED, RESOLVED, etc.
+  created_at: string;
+  updated_at: string;
+  analyst_notes?: string;
+  // Additional properties that ThreatAssessment.tsx component is trying to access
+  indicators?: string[];
+  mitigation_recommendations?: string[];
+  sources?: string[];
+  probability?: number;
+  timeline?: string;
+  analyst?: string;
+  recommendations?: string[];
+  target_id?: string;
 }
 
 // Investigation Workflow Models

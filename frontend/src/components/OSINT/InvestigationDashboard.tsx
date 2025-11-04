@@ -6,7 +6,7 @@ import AgentCoordinator from '../Workflow/AgentCoordinator';
 import ThreatAssessment from './ThreatAssessment';
 import Reports from './Reports';
 import AnalysisView from './AnalysisView';
-import { Investigation, InvestigationTarget } from '../../types/osint';
+import { Investigation } from '../../types/osint';
 
 type TabType = 'overview' | 'targets' | 'agents' | 'evidence' | 'analysis' | 'threats' | 'reports';
 

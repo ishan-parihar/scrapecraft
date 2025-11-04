@@ -44,13 +44,15 @@ const SplitView: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Agent Coordinator Sidebar - Replaces Workflow Sidebar */}
-      <AgentCoordinator />
+      <div className="w-80 flex-shrink-0">
+        <AgentCoordinator />
+      </div>
       
       {/* Main Content Area */}
       <div 
-        className="flex-1 flex h-full relative"
+        className="flex-1 flex h-full relative overflow-hidden"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -72,7 +74,7 @@ const SplitView: React.FC = () => {
         
         {/* Investigation Dashboard - Replaces Pipeline Panel */}
         <div 
-          className="h-full"
+          className="h-full overflow-auto"
           style={{ width: `${100 - splitPosition}%` }}
         >
           {currentInvestigation ? (

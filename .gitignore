@@ -1,12 +1,48 @@
+# Environment
 .env
-/backend/app/__pycache__
-/backend/app/__pycache__
-/backend/app/api/__pycache__
-/backend/app/models/__pycache__
-/backend/app/__pycache__
-/backend/app/models/__pycache__
-/backend/app/services/__pycache__
-/ai_agent/src/agents/analysis/__pycache__
-/ai_agent/__pycache__
-/ai_agent/src/workflow/__pycache__
-/frontend/node_modules
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+.npm/
+
+# Logs
+*.log
+logs/
+
+# Runtime
+*.pid
+.backend_pid
+.frontend_pid
+
+# Build
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+=*
+contacts.csv
+backup_scrapecraft_20251104_195449.tar.gz

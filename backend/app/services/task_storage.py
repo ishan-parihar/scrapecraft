@@ -31,8 +31,9 @@ class TaskStorageService:
             await self.redis_client.ping()
             logger.info("Connected to Redis for task storage")
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            raise
+            logger.warning(f"Failed to connect to Redis: {e}")
+            # Don't raise - continue without Redis for development
+            self.redis_client = None
     
     async def disconnect(self):
         """Close Redis connection."""
