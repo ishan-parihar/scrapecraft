@@ -1,0 +1,445 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'localhost:587'
+      smtp_from: 'alerts@scrapecraft.local'
+      smtp_auth_username: 'alerts@scrapecraft.local'
+      smtp_auth_password: 'password'
+      slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+      
+    # Route configuration
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'web.hook'
+      routes:
+      
+        # Critical alerts - immediate paging
+        - match:
+            severity: critical
+          receiver: 'critical-alerts'
+          group_wait: 0s
+          repeat_interval: 5m
+          continue: true
+        
+        # Warning alerts - email notification
+        - match:
+            severity: warning
+          receiver: 'warning-alerts'
+          group_wait: 30s
+          repeat_interval: 2h
+          
+        # Info alerts - slack notification
+        - match:
+            severity: info
+          receiver: 'info-alerts'
+          group_wait: 5m
+          repeat_interval: 4h
+        
+        # Database-specific alerts
+        - match:
+            service: database
+          receiver: 'database-alerts'
+          group_wait: 0s
+          repeat_interval: 30m
+          
+        # Security alerts
+        - match:
+            severity: security
+          receiver: 'security-alerts'
+          group_wait: 0s
+          repeat_interval: 15m
+          continue: true
+    
+    # Inhibition rules
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'instance']
+      
+      - source_match:
+          alertname: 'NodeDown'
+        target_match_re:
+          alertname: '(NodeCPUHigh|NodeMemoryHigh|NodeDiskHigh)'
+        equal: ['instance']
+    
+    # Receivers
+    receivers:
+      - name: 'web.hook'
+        webhook_configs:
+          - url: 'http://scrapecraft-backend.scrapecraft.svc.cluster.local:8000/webhooks/alerts'
+            send_resolved: true
+            http_config:
+              bearer_token: 'your-webhook-token'
+      
+      - name: 'critical-alerts'
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/services/YOUR/CRITICAL/WEBHOOK'
+            channel: '#alerts-critical'
+            title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+            text: |
+              *Cluster:* {{ .GroupLabels.cluster }}
+              *Service:* {{ .GroupLabels.service }}
+              *Severity:* {{ .GroupLabels.severity }}
+              
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Instance:* {{ .Labels.instance }}
+              *Time:* {{ .StartsAt }}
+              {{ end }}
+            send_resolved: true
+        email_configs:
+          - to: 'oncall@scrapecraft.local'
+            subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+            body: |
+              Critical alert triggered:
+              
+              {{ range .Alerts }}
+              Alert: {{ .Annotations.summary }}
+              Description: {{ .Annotations.description }}
+              Instance: {{ .Labels.instance }}
+              Time: {{ .StartsAt }}
+              
+              {{ end }}
+            send_resolved: true
+      
+      - name: 'warning-alerts'
+        email_configs:
+          - to: 'devops@scrapecraft.local'
+            subject: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+            body: |
+              Warning alert triggered:
+              
+              Cluster: {{ .GroupLabels.cluster }}
+              Service: {{ .GroupLabels.service }}
+              
+              {{ range .Alerts }}
+              Alert: {{ .Annotations.summary }}
+              Description: {{ .Annotations.description }}
+              Instance: {{ .Labels.instance }}
+              Time: {{ .StartsAt }}
+              
+              {{ end }}
+            send_resolved: true
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/services/YOUR/WARNING/WEBHOOK'
+            channel: '#alerts-warning'
+            title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+            send_resolved: true
+      
+      - name: 'info-alerts'
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/services/YOUR/INFO/WEBHOOK'
+            channel: '#alerts-info'
+            title: 'ℹ️ INFO: {{ .GroupLabels.alertname }}'
+            send_resolved: true
+      
+      - name: 'database-alerts'
+        email_configs:
+          - to: 'dba@scrapecraft.local'
+            subject: '🗄️ DATABASE ALERT: {{ .GroupLabels.alertname }}'
+            body: |
+              Database alert triggered:
+              
+              {{ range .Alerts }}
+              Alert: {{ .Annotations.summary }}
+              Description: {{ .Annotations.description }}
+              Database: {{ .Labels.database }}
+              Instance: {{ .Labels.instance }}
+              Time: {{ .StartsAt }}
+              
+              {{ end }}
+            send_resolved: true
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/services/YOUR/DB/WEBHOOK'
+            channel: '#database-alerts'
+            title: '🗄️ DATABASE: {{ .GroupLabels.alertname }}'
+            send_resolved: true
+      
+      - name: 'security-alerts'
+        email_configs:
+          - to: 'security@scrapecraft.local'
+            subject: '🔒 SECURITY ALERT: {{ .GroupLabels.alertname }}'
+            body: |
+              Security alert triggered - IMMEDIATE ATTENTION REQUIRED:
+              
+              {{ range .Alerts }}
+              Alert: {{ .Annotations.summary }}
+              Description: {{ .Annotations.description }}
+              Severity: {{ .Labels.severity }}
+              Source IP: {{ .Labels.source_ip }}
+              User: {{ .Labels.user }}
+              Time: {{ .StartsAt }}
+              
+              {{ end }}
+            send_resolved: true
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/services/YOUR/SECURITY/WEBHOOK'
+            channel: '#security-alerts'
+            title: '🔒 SECURITY: {{ .GroupLabels.alertname }}'
+            send_resolved: true
+        webhook_configs:
+          - url: 'http://security-scanner.scrapecraft.svc.cluster.local:8080/alerts'
+            send_resolved: true
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-secrets
+  namespace: monitoring
+type: Opaque
+data:
+  # Base64 encoded secrets (replace with actual values)
+  smtp-password: cGFzc3dvcmQ=  # password
+  slack-webhook-url: aHR0cHM6Ly9ob29rcy5zbGFjay5jb20vc2VydmljZXMvWU9VUi9TTEFDSy9XRUJIT09L  # replace with actual
+  webhook-token: eW91ci13ZWJob29rLXRva2Vu  # your-webhook-token
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    component: server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alertmanager
+      component: server
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+        component: server
+    spec:
+      serviceAccountName: alertmanager
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:v0.25.0
+        ports:
+        - containerPort: 9093
+          name: web
+        - containerPort: 9094
+          name: cluster
+        args:
+          - '--config.file=/etc/alertmanager/alertmanager.yml'
+          - '--storage.path=/alertmanager'
+          - '--web.external-url=https://alertmanager.scrapecraft.local'
+          - '--web.route-prefix=/'
+          - '--cluster.listen-address=0.0.0.0:9094'
+          - '--cluster.peer=alertmanager-0.alertmanager:9094'
+          - '--cluster.peer=alertmanager-1.alertmanager:9094'
+          - '--log.level=info'
+          - '--log.format=json'
+        volumeMounts:
+        - name: alertmanager-config
+          mountPath: /etc/alertmanager
+          readOnly: true
+        - name: alertmanager-secrets
+          mountPath: /etc/alertmanager/secrets
+          readOnly: true
+        - name: alertmanager-storage
+          mountPath: /alertmanager
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9093
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9093
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: alertmanager-config
+        configMap:
+          name: alertmanager-config
+      - name: alertmanager-secrets
+        secret:
+          secretName: alertmanager-secrets
+      - name: alertmanager-storage
+        persistentVolumeClaim:
+          claimName: alertmanager-storage
+      nodeSelector:
+        node-type: monitoring
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - alertmanager
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    component: server
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9093
+    targetPort: 9093
+    name: web
+  - port: 9094
+    targetPort: 9094
+    name: cluster
+  selector:
+    app: alertmanager
+    component: server
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-operated
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    component: operated
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9093"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9093
+    targetPort: 9093
+    name: web
+  - port: 9094
+    targetPort: 9094
+    name: cluster
+  selector:
+    app: alertmanager
+    component: server
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertmanager-storage
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alertmanager
+  namespace: monitoring
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alertmanager
+rules:
+- apiGroups: [""]
+  resources: ["pods", "endpoints", "services"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alertmanager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alertmanager
+subjects:
+- kind: ServiceAccount
+  name: alertmanager
+  namespace: monitoring
+
+---
+# AlertManager Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: alertmanager-ingress
+  namespace: monitoring
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: alertmanager-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "AlertManager Authentication Required"
+spec:
+  tls:
+  - hosts:
+    - alertmanager.scrapecraft.local
+    secretName: alertmanager-tls
+  rules:
+  - host: alertmanager.scrapecraft.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: alertmanager
+            port:
+              number: 9093
+
+---
+# Basic Auth Secret for AlertManager
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-basic-auth
+  namespace: monitoring
+  annotations:
+    kubernetes.io/ingress.class: nginx
+type: Opaque
+data:
+  auth: YWRtaW46JGFwcjEkQjZ6ZXZkNHckR3R4U2Nzb2p6L0JqL0pLN1JLbU1Cago=  # admin:password (htpasswd format)

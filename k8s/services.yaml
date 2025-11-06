@@ -1,0 +1,148 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: backend
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8000
+    targetPort: http
+    protocol: TCP
+  - name: metrics
+    port: 8000
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: backend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: frontend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: database
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9187"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: postgres
+    protocol: TCP
+  - name: metrics
+    port: 9187
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: database
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: cache
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9121"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis
+    protocol: TCP
+  - name: metrics
+    port: 9121
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: cache
+
+---
+# Optional: Headless service for StatefulSet DNS
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: postgres
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: database
+
+---
+# Optional: External service for database access (if needed)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-external
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: database
+spec:
+  type: LoadBalancer
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: postgres
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: database
+  # Uncomment and adjust if using cloud provider LoadBalancer
+  # loadBalancerIP: YOUR_EXTERNAL_IP

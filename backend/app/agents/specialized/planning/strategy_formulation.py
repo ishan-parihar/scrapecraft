@@ -15,7 +15,7 @@ import logging
 # from langchain.llms import OpenAI
 # from langchain.prompts import PromptTemplate
 
-from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
+from ...base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
 class StrategyFormulationAgent(LLMOSINTAgent):

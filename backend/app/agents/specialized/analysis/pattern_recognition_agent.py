@@ -10,7 +10,7 @@ import re
 import json
 import logging
 
-from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
+from ...base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
 class PatternRecognitionAgent(LLMOSINTAgent):

@@ -321,20 +321,32 @@ class AgentCommunication:
             self.logger.warning(f"Target agent {message.receiver_id} not found")
             return
         
-        # In a real implementation, this would use actual communication channels
-        # For now, we'll simulate direct delivery
+        # Use actual communication delivery through message passing
         try:
-            # Simulate delivery by adding to target's inbox
-            # In a distributed system, this would use Redis, RabbitMQ, etc.
-            await self._simulate_delivery(message)
+            # Deliver message to target agent's message queue
+            await self._deliver_message(message)
             
         except Exception as e:
             self.logger.error(f"Error delivering message to {message.receiver_id}: {e}")
     
-    async def _simulate_delivery(self, message: AgentMessage):
-        """Simulate message delivery for development/testing"""
-        # This would be replaced with actual network communication in production
-        pass
+    async def _deliver_message(self, message: AgentMessage):
+        """Deliver message to target agent's message queue"""
+        # Get target agent from registry
+        target_agent = self.agent_registry.get_agent(message.receiver_id)
+        if target_agent:
+            # Add message to target's inbox
+            if not hasattr(target_agent, 'message_queue'):
+                target_agent.message_queue = []
+            
+            target_agent.message_queue.append({
+                "message": message,
+                "received_at": datetime.utcnow(),
+                "status": "pending"
+            })
+            
+            self.logger.info(f"Message delivered to agent {message.receiver_id}")
+        else:
+            self.logger.warning(f"Target agent {message.receiver_id} not found for message delivery")
     
     def get_status(self) -> Dict[str, Any]:
         """Get communication system status"""

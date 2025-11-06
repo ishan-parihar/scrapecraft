@@ -19,14 +19,13 @@ from dotenv import load_dotenv
 # Add project root to path to enable imports
 sys.path.insert(0, os.path.abspath('.'))
 
-from ai_agent.src.workflow.graph import create_osint_workflow, OSINTWorkflow
-from ai_agent.src.workflow.state import (
+from backend.app.agents.workflow.graph import create_osint_workflow, OSINTWorkflow
+from backend.app.agents.workflow.state import (
     create_initial_state, 
     InvestigationPhase, 
     InvestigationStatus,
     InvestigationState
 )
-from ai_agent.src.agents.synthesis.enhanced_report_generation_agent_v2 import EnhancedReportGenerationAgentV2
 
 
 class OSINTOperatingSystem:
@@ -156,6 +155,7 @@ class OSINTOperatingSystem:
         }
         
         # Create report generation agent and execute
+        from backend.app.agents.specialized.synthesis.enhanced_report_generation_agent_v2 import EnhancedReportGenerationAgentV2
         agent = EnhancedReportGenerationAgentV2()
         result = await agent.execute(report_input)
         
@@ -288,11 +288,12 @@ Examples:
             # Show results
             progress = await osint_os.get_progress()
             print(f"\nInvestigation completed!")
-            print(f"Status: {progress['overall_status']}")
-            print(f"Progress: {progress['progress_percentage']:.1f}%")
-            print(f"Confidence: {progress['confidence_level']:.2f}")
-            print(f"Errors: {progress['errors_count']}")
-            print(f"Sources used: {progress['sources_used']}")
+            print(f"Status: {progress.get('status', 'unknown')}")
+            print(f"Progress: {progress.get('progress_percentage', 0.0):.1f}%")
+            print(f"Confidence: {progress.get('confidence_level', 0.0):.2f}")
+            print(f"Errors: {progress.get('errors_count', 0)}")
+            print(f"Sources used: {len(progress.get('sources_used', []))}")
+            print(f"Agents executed: {len(progress.get('agents_executed', []))}")
             
             # Save state if requested
             if args.save_state:

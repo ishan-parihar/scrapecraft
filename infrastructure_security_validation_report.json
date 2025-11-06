@@ -1,0 +1,299 @@
+{
+  "timestamp": "2025-11-04T21:55:16.681488",
+  "validation_type": "infrastructure_security",
+  "overall_status": "WARNING",
+  "summary": {
+    "total_checks": 35,
+    "passed": 34,
+    "failed": 1,
+    "critical_issues": 0,
+    "warnings": 1
+  },
+  "critical_issues": [],
+  "warnings": [
+    "Falco Security Rules: No security rules found in Falco configuration"
+  ],
+  "passed_checks": [
+    "K8s Security File: k8s/security/network-policies.yaml",
+    "K8s YAML Syntax: k8s/security/network-policies.yaml",
+    "K8s Security File: k8s/security/rbac.yaml",
+    "K8s YAML Syntax: k8s/security/rbac.yaml",
+    "K8s Security File: k8s/security/falco.yaml",
+    "K8s YAML Syntax: k8s/security/falco.yaml",
+    "Default Deny Network Policy",
+    "DNS Allow Network Policy",
+    "RBAC Roles",
+    "RBAC Role Bindings",
+    "Service Accounts",
+    "Falco Security Configuration",
+    "Security Code File: backend/app/security/config.py",
+    "Security Code File: backend/app/security/integration.py",
+    "Security Code File: backend/app/services/enhanced_auth_service.py",
+    "Security Code File: backend/app/api/enhanced_auth.py",
+    "Security Code File: backend/app/main_enhanced.py",
+    "Security Test File: tests/security/comprehensive_security_test.py",
+    "Security Test File: tests/security/test_security.py",
+    "Security Context: k8s/backend-deployment.yaml",
+    "Non-Root User: k8s/backend-deployment.yaml",
+    "Security Context: k8s/frontend-deployment.yaml",
+    "Non-Root User: k8s/frontend-deployment.yaml",
+    "Security Context: k8s/postgres-deployment.yaml",
+    "Non-Root User: k8s/postgres-deployment.yaml",
+    "Security Context: k8s/redis-deployment.yaml",
+    "Non-Root User: k8s/redis-deployment.yaml",
+    "Config File: config/environments/development.yaml",
+    "Config File: config/environments/production.yaml",
+    "Config File: config/environments/staging.yaml",
+    "Config File: .env.example",
+    "Security Documentation: SECURITY_DEPLOYMENT_GUIDE.md",
+    "Security Documentation: SECURITY_HARDENING_IMPLEMENTATION.md",
+    "Security Documentation: OSINT_REMEDIATION_PLAN.md"
+  ],
+  "detailed_results": [
+    {
+      "check_name": "K8s Security File: k8s/security/network-policies.yaml",
+      "passed": true,
+      "details": "Security manifest exists: 6066 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.557134"
+    },
+    {
+      "check_name": "K8s YAML Syntax: k8s/security/network-policies.yaml",
+      "passed": true,
+      "details": "Valid YAML syntax (7 documents)",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.569162"
+    },
+    {
+      "check_name": "K8s Security File: k8s/security/rbac.yaml",
+      "passed": true,
+      "details": "Security manifest exists: 6628 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.569200"
+    },
+    {
+      "check_name": "K8s YAML Syntax: k8s/security/rbac.yaml",
+      "passed": true,
+      "details": "Valid YAML syntax (13 documents)",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.581518"
+    },
+    {
+      "check_name": "K8s Security File: k8s/security/falco.yaml",
+      "passed": true,
+      "details": "Security manifest exists: 11375 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.581552"
+    },
+    {
+      "check_name": "K8s YAML Syntax: k8s/security/falco.yaml",
+      "passed": true,
+      "details": "Valid YAML syntax (8 documents)",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.595114"
+    },
+    {
+      "check_name": "Default Deny Network Policy",
+      "passed": true,
+      "details": "Default deny all traffic policy found",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.606790"
+    },
+    {
+      "check_name": "DNS Allow Network Policy",
+      "passed": true,
+      "details": "DNS resolution policy found",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.606798"
+    },
+    {
+      "check_name": "RBAC Roles",
+      "passed": true,
+      "details": "RBAC roles defined",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.620113"
+    },
+    {
+      "check_name": "RBAC Role Bindings",
+      "passed": true,
+      "details": "RBAC role bindings defined",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.620117"
+    },
+    {
+      "check_name": "Service Accounts",
+      "passed": true,
+      "details": "Service accounts defined",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.620119"
+    },
+    {
+      "check_name": "Falco Security Configuration",
+      "passed": true,
+      "details": "Falco runtime security configuration found",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632326"
+    },
+    {
+      "check_name": "Falco Security Rules",
+      "passed": false,
+      "details": "No security rules found in Falco configuration",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632332"
+    },
+    {
+      "check_name": "Security Code File: backend/app/security/config.py",
+      "passed": true,
+      "details": "Security module exists: 17412 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632385"
+    },
+    {
+      "check_name": "Security Code File: backend/app/security/integration.py",
+      "passed": true,
+      "details": "Security module exists: 17153 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632407"
+    },
+    {
+      "check_name": "Security Code File: backend/app/services/enhanced_auth_service.py",
+      "passed": true,
+      "details": "Security module exists: 33731 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632425"
+    },
+    {
+      "check_name": "Security Code File: backend/app/api/enhanced_auth.py",
+      "passed": true,
+      "details": "Security module exists: 24820 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632441"
+    },
+    {
+      "check_name": "Security Code File: backend/app/main_enhanced.py",
+      "passed": true,
+      "details": "Security module exists: 17570 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632456"
+    },
+    {
+      "check_name": "Security Test File: tests/security/comprehensive_security_test.py",
+      "passed": true,
+      "details": "Security test exists: 25581 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632472"
+    },
+    {
+      "check_name": "Security Test File: tests/security/test_security.py",
+      "passed": true,
+      "details": "Security test exists: 27879 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.632487"
+    },
+    {
+      "check_name": "Security Context: k8s/backend-deployment.yaml",
+      "passed": true,
+      "details": "Pod security context defined",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.651755"
+    },
+    {
+      "check_name": "Non-Root User: k8s/backend-deployment.yaml",
+      "passed": true,
+      "details": "Containers configured to run as non-root",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.651763"
+    },
+    {
+      "check_name": "Security Context: k8s/frontend-deployment.yaml",
+      "passed": true,
+      "details": "Pod security context defined",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.662565"
+    },
+    {
+      "check_name": "Non-Root User: k8s/frontend-deployment.yaml",
+      "passed": true,
+      "details": "Containers configured to run as non-root",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.662585"
+    },
+    {
+      "check_name": "Security Context: k8s/postgres-deployment.yaml",
+      "passed": true,
+      "details": "Pod security context defined",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.673613"
+    },
+    {
+      "check_name": "Non-Root User: k8s/postgres-deployment.yaml",
+      "passed": true,
+      "details": "Containers configured to run as non-root",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.673628"
+    },
+    {
+      "check_name": "Security Context: k8s/redis-deployment.yaml",
+      "passed": true,
+      "details": "Pod security context defined",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681167"
+    },
+    {
+      "check_name": "Non-Root User: k8s/redis-deployment.yaml",
+      "passed": true,
+      "details": "Containers configured to run as non-root",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681188"
+    },
+    {
+      "check_name": "Config File: config/environments/development.yaml",
+      "passed": true,
+      "details": "Configuration file exists: 1627 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681284"
+    },
+    {
+      "check_name": "Config File: config/environments/production.yaml",
+      "passed": true,
+      "details": "Configuration file exists: 3343 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681310"
+    },
+    {
+      "check_name": "Config File: config/environments/staging.yaml",
+      "passed": true,
+      "details": "Configuration file exists: 2055 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681328"
+    },
+    {
+      "check_name": "Config File: .env.example",
+      "passed": true,
+      "details": "Configuration file exists: 4488 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681343"
+    },
+    {
+      "check_name": "Security Documentation: SECURITY_DEPLOYMENT_GUIDE.md",
+      "passed": true,
+      "details": "Security documentation exists: 12741 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681364"
+    },
+    {
+      "check_name": "Security Documentation: SECURITY_HARDENING_IMPLEMENTATION.md",
+      "passed": true,
+      "details": "Security documentation exists: 3812 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681386"
+    },
+    {
+      "check_name": "Security Documentation: OSINT_REMEDIATION_PLAN.md",
+      "passed": true,
+      "details": "Security documentation exists: 13468 bytes",
+      "severity": "MEDIUM",
+      "timestamp": "2025-11-04T21:55:16.681406"
+    }
+  ]
+}

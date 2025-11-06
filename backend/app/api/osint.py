@@ -29,6 +29,9 @@ from app.services.websocket import ConnectionManager
 from app.services.enhanced_websocket import enhanced_manager as enhanced_connection_manager
 from app.services.task_storage import task_storage
 
+# Import premium search agent
+from app.agents.specialized.collection.premium_search_agent import PremiumSearchAgent
+
 # Initialize the router
 router = APIRouter(prefix="", tags=["osint"])
 
@@ -39,25 +42,29 @@ evidence_db: Dict[str, CollectedEvidence] = {}
 threats_db: Dict[str, ThreatAssessment] = {}
 reports_db: Dict[str, InvestigationReport] = {}
 
-# Initialize some mock data for demonstration
-def initialize_mock_data():
-    """Initialize mock data for demonstration purposes."""
-    if not investigations_db:
-        # Create a sample investigation
-        sample_investigation = Investigation(
-            id="inv-001",
-            title="Corporate Security Assessment",
-            description="Assessment of potential security threats to corporate infrastructure",
-            classification=InvestigationClassification.CONFIDENTIAL,
-            priority=InvestigationPriority.HIGH,
-            status=InvestigationStatus.ACTIVE,
-            current_phase=InvestigationPhase.RECONNAISSANCE
-        )
-        investigations_db[sample_investigation.id] = sample_investigation
+# Initialize real data from database if available
+def initialize_real_data():
+    """Initialize real data from database if available."""
+    try:
+        # Try to load investigations from database or file storage
+        from app.services.investigation_storage import load_investigations
+        
+        loaded_investigations = load_investigations()
+        for inv in loaded_investigations:
+            investigations_db[inv.id] = inv
+            
+        logger.info(f"Loaded {len(loaded_investigations)} investigations from storage")
+    except ImportError:
+        logger.warning("Investigation storage not available, starting with empty database")
+    except Exception as e:
+        logger.error(f"Failed to load investigations: {e}")
 
-initialize_mock_data()
+# Remove test initialization - start with empty database
+# initialize_test_data()
 
 logger = logging.getLogger(__name__)
+
+initialize_real_data()
 
 @router.get("/investigations", response_model=List[Investigation])
 async def list_investigations(
@@ -681,3 +688,363 @@ async def investigation_websocket(websocket: WebSocket, investigation_id: str):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         enhanced_connection_manager.disconnect(websocket, f"investigation_{investigation_id}", user_id)
+
+
+# Search endpoints
+@router.post("/search", response_model=Dict[str, Any])
+async def search_web(query: str, max_results: Optional[int] = 10, engines: Optional[List[str]] = None):
+    """
+    Perform a web search using available search engines.
+    """
+    try:
+        # Import the search agent
+        from app.agents.specialized.collection.simple_search_agent import SimpleSearchAgent
+        from app.agents.base.osint_agent import AgentConfig
+        
+        # Initialize search agent
+        config = AgentConfig(
+            role="Search Specialist",
+            description="Performs web searches",
+            timeout=30,
+            max_retries=2
+        )
+        search_agent = SimpleSearchAgent(config)
+        
+        # Set max results if provided
+        if max_results:
+            search_agent.max_results = max_results
+        
+        # Perform search
+        input_data = {"query": query}
+        result = await search_agent.execute(input_data)
+        
+        if result.success:
+            return {
+                "success": True,
+                "query": query,
+                "results": result.data.get("results", []),
+                "total_results": result.data.get("total_results", 0),
+                "engines_used": result.data.get("engines_used", []),
+                "search_time": result.data.get("search_time", 0.0),
+                "timestamp": result.data.get("timestamp", datetime.utcnow().isoformat())
+            }
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Search failed: {result.error_message}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Search API error: {e}")
+        raise HTTPException(status_code=500, detail=f"Search operation failed: {str(e)}")
+
+
+@router.post("/investigations/{investigation_id}/search")
+async def search_in_investigation(investigation_id: str, query: str, max_results: Optional[int] = 10):
+    """
+    Perform a search within the context of an investigation and store results as evidence.
+    """
+    try:
+        # First verify investigation exists
+        if investigation_id not in investigations_db:
+            raise HTTPException(status_code=404, detail="Investigation not found")
+        
+        # Perform search
+        search_result = await search_web(query, max_results)
+        
+        if search_result["success"]:
+            # Store search results as evidence
+            evidence_items = []
+            for idx, result in enumerate(search_result["results"]):
+                evidence_id = f"evidence-{str(uuid.uuid4())[:8]}"
+                
+                evidence = CollectedEvidence(
+                    id=evidence_id,
+                    investigation_id=investigation_id,
+                    source_type="web_search",
+                    source_name=result.get("source", "unknown"),
+                    collection_method="automated_search",
+                    title=result.get("title", ""),
+                    content=result.get("description", ""),
+                    url=result.get("url", ""),
+                    relevance_score=result.get("relevance_score", 0.5),
+                    collection_timestamp=datetime.utcnow(),
+                    tags=["search", "web", result.get("source", "unknown")],
+                    metadata={
+                        "search_query": query,
+                        "search_engine": result.get("source"),
+                        "result_index": idx,
+                        "total_results": search_result["total_results"]
+                    }
+                )
+                
+                evidence_db[evidence_id] = evidence
+                evidence_items.append({
+                    "id": evidence_id,
+                    "title": evidence.title,
+                    "url": evidence.url,
+                    "source": evidence.source_name,
+                    "relevance_score": evidence.relevance_score
+                })
+            
+            # Update investigation with new evidence count
+            investigation = investigations_db[investigation_id]
+            investigation.collected_evidence.extend(evidence_items)
+            
+            # Send WebSocket update
+            await enhanced_connection_manager.broadcast_to_group(
+                f"investigation_{investigation_id}",
+                {
+                    "type": "search_completed",
+                    "investigation_id": investigation_id,
+                    "query": query,
+                    "results_count": len(evidence_items),
+                    "evidence_items": evidence_items,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+            
+            return {
+                "success": True,
+                "query": query,
+                "investigation_id": investigation_id,
+                "evidence_added": len(evidence_items),
+                "evidence_items": evidence_items,
+                "total_results": search_result["total_results"],
+                "engines_used": search_result["engines_used"]
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Search operation failed")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Investigation search error: {e}")
+        raise HTTPException(status_code=500, detail=f"Investigation search failed: {str(e)}")
+
+
+# Premium Search endpoints - Advanced scraping without APIs
+
+@router.post("/premium-search", response_model=Dict[str, Any])
+async def premium_search_web(
+    query: str,
+    engines: Optional[List[str]] = None,
+    max_pages: Optional[int] = 1,
+    use_browser: Optional[bool] = False
+):
+    """
+    Perform advanced web search using premium scraping techniques without APIs.
+    
+    Args:
+        query: Search query string
+        engines: List of engines (duckduckgo, brave, google, bing, yahoo, yandex, baidu)
+        max_pages: Number of pages to scrape per engine
+        use_browser: Use browser automation (slower but more effective)
+    """
+    try:
+        # Initialize premium search agent
+        premium_agent = PremiumSearchAgent()
+        
+        # Prepare input data
+        input_data = {
+            "query": query,
+            "engines": engines or ["duckduckgo", "brave"],
+            "max_pages": max_pages,
+            "use_browser": use_browser
+        }
+        
+        # Execute premium search
+        result = await premium_agent.execute(input_data)
+        
+        if result.success:
+            data = result.data
+            return {
+                "success": True,
+                "query": query,
+                "results": data.get("results", []),
+                "summary": data.get("summary", {}),
+                "metadata": data.get("metadata", {}),
+                "total_results": len(data.get("results", [])),
+                "execution_time": result.execution_time,
+                "confidence": result.confidence,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Premium search failed: {result.error_message}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Premium search API error: {e}")
+        raise HTTPException(status_code=500, detail=f"Premium search failed: {str(e)}")
+
+
+@router.post("/investigations/{investigation_id}/premium-search")
+async def premium_search_investigation(
+    investigation_id: str,
+    query: str,
+    engines: Optional[List[str]] = None,
+    max_pages: Optional[int] = 1,
+    use_browser: Optional[bool] = False,
+    store_as_evidence: Optional[bool] = True
+):
+    """
+    Perform premium search within investigation context with evidence collection.
+    """
+    try:
+        # Verify investigation exists
+        if investigation_id not in investigations_db:
+            raise HTTPException(status_code=404, detail="Investigation not found")
+        
+        # Initialize premium search agent
+        premium_agent = PremiumSearchAgent()
+        
+        # Prepare input data with investigation context
+        input_data = {
+            "query": query,
+            "engines": engines or ["duckduckgo", "brave"],
+            "max_pages": max_pages,
+            "use_browser": use_browser,
+            "investigation_id": investigation_id
+        }
+        
+        # Execute premium search
+        result = await premium_agent.execute(input_data)
+        
+        if result.success:
+            data = result.data
+            results = data.get("results", [])
+            evidence_items = []
+            
+            # Store results as evidence if requested
+            if store_as_evidence and results:
+                for search_result in results:
+                    evidence_id = f"ev-{str(uuid.uuid4())[:8]}"
+                    
+                    evidence = CollectedEvidence(
+                        id=evidence_id,
+                        investigation_id=investigation_id,
+                        title=search_result.get("title", "Search Result"),
+                        content=search_result.get("snippet", ""),
+                        url=search_result.get("url", ""),
+                        source_name=f"Premium Search - {search_result.get('engine', 'unknown')}",
+                        source_type="web_search",
+                        relevance_score=search_result.get("relevance_score", 0.5),
+                        collection_method="premium_scraping",
+                        metadata={
+                            "engine": search_result.get("engine"),
+                            "rank": search_result.get("rank"),
+                            "quality_score": search_result.get("quality_score"),
+                            "content_type": search_result.get("content_type"),
+                            "extracted_entities": search_result.get("extracted_entities", []),
+                            "query_hash": search_result.get("query_hash"),
+                            "collection_method": search_result.get("collection_method")
+                        },
+                        tags=["premium_search", search_result.get("engine", "unknown")]
+                    )
+                    
+                    evidence_db[evidence_id] = evidence
+                    evidence_items.append({
+                        "id": evidence_id,
+                        "title": evidence.title,
+                        "url": evidence.url,
+                        "source": evidence.source_name,
+                        "relevance_score": evidence.relevance_score,
+                        "quality_score": search_result.get("quality_score"),
+                        "engine": search_result.get("engine"),
+                        "content_type": search_result.get("content_type")
+                    })
+            
+            # Update investigation
+            investigation = investigations_db[investigation_id]
+            investigation.collected_evidence.extend(evidence_items)
+            investigation.updated_at = datetime.utcnow()
+            
+            # Send WebSocket notification
+            await enhanced_connection_manager.broadcast_to_group(
+                f"investigation_{investigation_id}",
+                {
+                    "type": "premium_search_completed",
+                    "investigation_id": investigation_id,
+                    "query": query,
+                    "results_count": len(results),
+                    "evidence_added": len(evidence_items),
+                    "engines_used": data.get("summary", {}).get("engines_used", []),
+                    "average_relevance": data.get("summary", {}).get("average_relevance", 0),
+                    "quality_distribution": data.get("summary", {}).get("quality_distribution", {}),
+                    "search_method": data.get("summary", {}).get("search_method", "http_requests"),
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+            
+            return {
+                "success": True,
+                "query": query,
+                "investigation_id": investigation_id,
+                "results": results,
+                "summary": data.get("summary", {}),
+                "evidence_added": len(evidence_items),
+                "evidence_items": evidence_items,
+                "total_results": len(results),
+                "execution_time": result.execution_time,
+                "confidence": result.confidence
+            }
+        else:
+            raise HTTPException(status_code=500, detail=f"Premium search failed: {result.error_message}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Investigation premium search error: {e}")
+        raise HTTPException(status_code=500, detail=f"Investigation premium search failed: {str(e)}")
+
+
+@router.get("/premium-search/engines")
+async def get_premium_search_engines():
+    """Get list of supported premium search engines."""
+    try:
+        premium_agent = PremiumSearchAgent()
+        engines = await premium_agent.get_supported_engines()
+        
+        return {
+            "success": True,
+            "engines": engines,
+            "total_engines": len(engines),
+            "features": [
+                "No API keys required",
+                "Advanced anti-detection",
+                "Proxy rotation support",
+                "Browser automation",
+                "Rate limiting",
+                "Result quality assessment",
+                "Entity extraction",
+                "Content classification"
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Get engines error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get supported engines: {str(e)}")
+
+
+@router.post("/premium-search/test-connectivity")
+async def test_premium_connectivity():
+    """Test connectivity to premium search engines."""
+    try:
+        premium_agent = PremiumSearchAgent()
+        connectivity_results = await premium_agent.test_connectivity()
+        
+        return {
+            "success": True,
+            "connectivity": connectivity_results,
+            "working_engines": [engine for engine, status in connectivity_results.items() if status],
+            "failed_engines": [engine for engine, status in connectivity_results.items() if not status],
+            "total_engines": len(connectivity_results),
+            "success_rate": sum(connectivity_results.values()) / len(connectivity_results) if connectivity_results else 0,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Test connectivity error: {e}")
+        raise HTTPException(status_code=500, detail=f"Connectivity test failed: {str(e)}")

@@ -17,7 +17,7 @@ import importlib.util
 import os
 
 # Import the state module dynamically
-state_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'workflow', 'state.py')
+state_module_path = os.path.join(os.path.dirname(__file__), 'state.py')
 spec = importlib.util.spec_from_file_location("state", state_module_path)
 if spec is not None and spec.loader is not None:
     state_module = importlib.util.module_from_spec(spec)
@@ -33,7 +33,7 @@ import importlib.util
 import os
 
 # Import the client module dynamically
-client_module_path = os.path.join(os.path.dirname(__file__), '..', 'clients', 'backend_scraping_client.py')
+client_module_path = os.path.join(os.path.dirname(__file__), 'backend_scraping_client.py')
 spec = importlib.util.spec_from_file_location("backend_scraping_client", client_module_path)
 if spec is not None and spec.loader is not None:
     backend_scraping_client_module = importlib.util.module_from_spec(spec)

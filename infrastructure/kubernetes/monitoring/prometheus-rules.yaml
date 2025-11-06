@@ -1,0 +1,415 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-rules
+  namespace: monitoring
+data:
+  scrapecraft-rules.yml: |
+    groups:
+    - name: scrapecraft-backend.rules
+      rules:
+      
+      # Backend Health Alerts
+      - alert: ScrapeCraftBackendDown
+        expr: up{job="scrapecraft-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+          component: api
+        annotations:
+          summary: "ScrapeCraft backend is down"
+          description: "ScrapeCraft backend has been down for more than 1 minute on {{ $labels.instance }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/backend-down"
+      
+      - alert: ScrapeCraftHighErrorRate
+        expr: rate(http_requests_total{job="scrapecraft-backend",status=~"5.."}[5m]) / rate(http_requests_total{job="scrapecraft-backend"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+          component: api
+        annotations:
+          summary: "High error rate on ScrapeCraft backend"
+          description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/high-error-rate"
+      
+      - alert: ScrapeCraftHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="scrapecraft-backend"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+          component: api
+        annotations:
+          summary: "High latency on ScrapeCraft backend"
+          description: "95th percentile latency is {{ $value }}s on {{ $labels.instance }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/high-latency"
+      
+      - alert: ScrapeCraftMemoryUsageHigh
+        expr: process_resident_memory_bytes{job="scrapecraft-backend"} / 1024 / 1024 / 1024 > 2
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+          component: api
+        annotations:
+          summary: "High memory usage on ScrapeCraft backend"
+          description: "Memory usage is {{ $value }}GB on {{ $labels.instance }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/high-memory"
+      
+      - alert: ScrapeCraftCPUUsageHigh
+        expr: rate(process_cpu_seconds_total{job="scrapecraft-backend"}[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+          component: api
+        annotations:
+          summary: "High CPU usage on ScrapeCraft backend"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/high-cpu"
+      
+      - alert: ScrapeCraftDatabaseConnectionsHigh
+        expr: pg_stat_activity_count{job="postgres-exporter",datname="scrapecraft"} > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+          component: postgresql
+        annotations:
+          summary: "High database connections"
+          description: "{{ $value }} active database connections"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/db-connections"
+      
+      # Scraping Service Alerts
+      - alert: ScrapingQueueBacklog
+        expr: redis_connected_clients{job="redis-exporter"} > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          component: queue
+        annotations:
+          summary: "Redis queue backlog detected"
+          description: "{{ $value }} Redis clients connected, possible queue backlog"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/queue-backlog"
+      
+      - alert: ScrapingFailureRate
+        expr: rate(scraping_operations_failed_total[5m]) / rate(scraping_operations_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: scraping
+          component: service
+        annotations:
+          summary: "High scraping failure rate"
+          description: "Scraping failure rate is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/scraping-failures"
+      
+      # Security Alerts
+      - alert: SuspiciousLoginActivity
+        expr: rate(auth_login_attempts_total{status="failed"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: security
+          service: auth
+          component: security
+        annotations:
+          summary: "Suspicious login activity detected"
+          description: "{{ $value }} failed login attempts per minute"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/security-brute-force"
+      
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(http_requests_total{job="scrapecraft-backend",status="401"}[5m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+          service: security
+          component: auth
+        annotations:
+          summary: "High rate of unauthorized access attempts"
+          description: "{{ $value }} unauthorized requests per minute"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/unauthorized-access"
+      
+      # WebSocket Alerts
+      - alert: WebSocketConnectionsHigh
+        expr: websocket_connections_active > 1000
+        for: 10m
+        labels:
+          severity: warning
+          service: websocket
+          component: realtime
+        annotations:
+          summary: "High number of WebSocket connections"
+          description: "{{ $value }} active WebSocket connections"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/websocket-load"
+      
+      - alert: WebSocketConnectionErrors
+        expr: rate(websocket_connection_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: websocket
+          component: realtime
+        annotations:
+          summary: "WebSocket connection errors"
+          description: "{{ $value }} WebSocket connection errors per minute"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/websocket-errors"
+      
+      # LLM Service Alerts
+      - alert: LLMServiceHighLatency
+        expr: histogram_quantile(0.95, rate(llm_request_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: llm
+          component: ai
+        annotations:
+          summary: "LLM service high latency"
+          description: "95th percentile LLM request latency is {{ $value }}s"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/llm-latency"
+      
+      - alert: LLMServiceHighErrorRate
+        expr: rate(llm_requests_failed_total[5m]) / rate(llm_requests_total[5m]) > 0.15
+        for: 5m
+        labels:
+          severity: warning
+          service: llm
+          component: ai
+        annotations:
+          summary: "LLM service high error rate"
+          description: "LLM service error rate is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/llm-errors"
+      
+      # File System Alerts
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+          component: storage
+        annotations:
+          summary: "Low disk space"
+          description: "{{ $value }}% disk space available on {{ $labels.instance }}:{{ $labels.mountpoint }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/low-disk-space"
+      
+      # Container Resource Alerts
+      - alert: ContainerOOMKills
+        expr: increase(container_oom_events_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: kubernetes
+          component: containers
+        annotations:
+          summary: "Container OOM kill detected"
+          description: "Container {{ $labels.name }} on {{ $labels.instance }} was OOM killed"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/container-oom"
+      
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: kubernetes
+          component: pods
+        annotations:
+          summary: "Pod is crash looping"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/pod-crash-loop"
+      
+      # Database Performance Alerts
+      - alert: PostgreSQLSlowQueries
+        expr: pg_stat_statements_mean_time_seconds > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: database
+          component: postgresql
+        annotations:
+          summary: "PostgreSQL slow queries detected"
+          description: "Average query time is {{ $value }}s"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/slow-queries"
+      
+      - alert: PostgreSQLLockWaitTime
+        expr: pg_stat_database_conflicts{datname="scrapecraft"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+          component: postgresql
+        annotations:
+          summary: "PostgreSQL lock wait time high"
+          description: "{{ $value }} database conflicts detected"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/db-locks"
+      
+      - alert: PostgreSQLReplicationLag
+        expr: pg_replication_lag_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+          component: postgresql
+        annotations:
+          summary: "PostgreSQL replication lag"
+          description: "Replication lag is {{ $value }}s"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/replication-lag"
+      
+      # Network Alerts
+      - alert: HighNetworkLatency
+        expr: probe_duration_seconds > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: network
+          component: connectivity
+        annotations:
+          summary: "High network latency detected"
+          description: "Network latency is {{ $value }}s to {{ $labels.instance }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/network-latency"
+      
+      - alert: NetworkPacketLoss
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: network
+          component: connectivity
+        annotations:
+          summary: "Network packet loss detected"
+          description: "Packet loss detected to {{ $labels.instance }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/packet-loss"
+
+    - name: scrapecraft-business.rules
+      rules:
+      
+      # Business Metrics Alerts
+      - alert: LowInvestigationCompletionRate
+        expr: rate(investigations_completed_total[1h]) / rate(investigations_started_total[1h]) < 0.8
+        for: 30m
+        labels:
+          severity: warning
+          service: business
+          component: investigations
+        annotations:
+          summary: "Low investigation completion rate"
+          description: "Investigation completion rate is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/low-completion-rate"
+      
+      - alert: HighUserAPIUsage
+        expr: rate(api_requests_per_user[1h]) > 1000
+        for: 15m
+        labels:
+          severity: info
+          service: business
+          component: usage
+        annotations:
+          summary: "High API usage by user"
+          description: "User {{ $labels.user_id }} is making {{ $value }} requests per hour"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/high-usage"
+      
+      - alert: DataCollectionStalled
+        expr: time() - max(last_successful_scrape_timestamp) > 3600
+        for: 30m
+        labels:
+          severity: warning
+          service: business
+          component: data-collection
+        annotations:
+          summary: "Data collection stalled"
+          description: "No successful data collection for over 1 hour"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/data-collection-stalled"
+
+    - name: scrapecraft-security.rules
+      rules:
+      
+      # Security-Specific Alerts
+      - alert: BruteForceAttackDetected
+        expr: rate(auth_login_attempts_total{status="failed",source_ip!=""}[5m]) > 50
+        for: 2m
+        labels:
+          severity: security
+          service: security
+          component: auth
+        annotations:
+          summary: "Brute force attack detected"
+          description: "{{ $value }} failed login attempts per minute from {{ $labels.source_ip }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/brute-force-attack"
+      
+      - alert: SuspiciousDataExport
+        expr: rate(data_export_operations_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: security
+          service: security
+          component: data-export
+        annotations:
+          summary: "Suspicious data export activity"
+          description: "{{ $value }} data export operations per minute by {{ $labels.user_id }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/suspicious-export"
+      
+      - alert: PrivilegeEscalationAttempt
+        expr: auth_privilege_escalation_attempts_total > 0
+        for: 0m
+        labels:
+          severity: security
+          service: security
+          component: rbac
+        annotations:
+          summary: "Privilege escalation attempt detected"
+          description: "Privilege escalation attempt by {{ $labels.user_id }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/privilege-escalation"
+      
+      - alert: UnusualAPIPattern
+        expr: rate(api_requests_total{endpoint=~"/api/.*"}[1h]) / rate(api_requests_total{endpoint=~"/api/.*"}[24h] offset 1h) > 5
+        for: 15m
+        labels:
+          severity: warning
+          service: security
+          component: api
+        annotations:
+          summary: "Unusual API usage pattern"
+          description: "API usage is 5x higher than normal for {{ $labels.endpoint }}"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/unusual-api-pattern"
+
+    - name: scrapecraft-compliance.rules
+      rules:
+      
+      # Compliance and Audit Alerts
+      - alert: AuditLogBacklog
+        expr: audit_log_queue_size > 1000
+        for: 10m
+        labels:
+          severity: warning
+          service: compliance
+          component: audit
+        annotations:
+          summary: "Audit log backlog detected"
+          description: "{{ $value }} audit events in queue"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/audit-backlog"
+      
+      - alert: DataRetentionPolicyViolation
+        expr: data_age_seconds > data_retention_period_seconds
+        for: 30m
+        labels:
+          severity: warning
+          service: compliance
+          component: data-retention
+        annotations:
+          summary: "Data retention policy violation"
+          description: "Data older than retention period detected"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/data-retention"
+      
+      - alert: MissingSecurityHeaders
+        expr: security_headers_missing{header="X-Content-Type-Options"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          service: security
+          component: headers
+        annotations:
+          summary: "Missing security headers"
+          description: "Security header {{ $labels.header }} is missing"
+          runbook_url: "https://docs.scrapecraft.local/runbooks/security-headers"

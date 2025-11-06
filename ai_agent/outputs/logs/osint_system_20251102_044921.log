@@ -1,3 +1,0 @@
-2025-11-02 04:49:21,638 - ai_agent.src.utils.output_manager.OutputManager - INFO - Output Manager initialized
-2025-11-02 04:49:21,638 - ai_agent.src.utils.output_manager.OutputManager - INFO - Investigation report saved: /home/ishanp/Documents/GitHub/scrapecraft/ai_agent/outputs/reports/test_investigation_20251102_044921_report_20251102_044921.json
-2025-11-02 04:49:21,638 - ai_agent.src.utils.output_manager.OutputManager - INFO - Human-readable report saved: /home/ishanp/Documents/GitHub/scrapecraft/ai_agent/outputs/reports/test_investigation_20251102_044921_report_20251102_044921.md

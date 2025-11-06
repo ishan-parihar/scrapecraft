@@ -100,3 +100,64 @@ export const osintAgentApi = {
     return response.data;
   }
 };
+
+// Search API
+export interface SearchResult {
+  title: string;
+  url: string;
+  description: string;
+  source: string;
+  relevance_score: number;
+}
+
+export interface SearchResponse {
+  success: boolean;
+  query: string;
+  results: SearchResult[];
+  total_results: number;
+  engines_used: string[];
+  search_time: number;
+  timestamp: string;
+}
+
+export interface InvestigationSearchResponse extends SearchResponse {
+  investigation_id: string;
+  evidence_added: number;
+  evidence_items: Array<{
+    id: string;
+    title: string;
+    url: string;
+    source: string;
+    relevance_score: number;
+  }>;
+}
+
+export const searchApi = {
+  // Perform web search
+  searchWeb: async (query: string, maxResults?: number): Promise<SearchResponse> => {
+    const params = new URLSearchParams();
+    params.append('query', query);
+    if (maxResults) {
+      params.append('max_results', maxResults.toString());
+    }
+    
+    const response = await api.post(`/osint/search?${params.toString()}`);
+    return response.data;
+  },
+
+  // Search within investigation context
+  searchInInvestigation: async (
+    investigationId: string, 
+    query: string, 
+    maxResults?: number
+  ): Promise<InvestigationSearchResponse> => {
+    const params = new URLSearchParams();
+    params.append('query', query);
+    if (maxResults) {
+      params.append('max_results', maxResults.toString());
+    }
+    
+    const response = await api.post(`/osint/investigations/${investigationId}/search?${params.toString()}`);
+    return response.data;
+  }
+};

@@ -19,7 +19,7 @@ class LocalScrapingServiceReal:
         # Use environment variables to configure LLM
         self.llm_config = llm_config or {
             "model": os.getenv("LOCAL_LLM_MODEL", "gpt-3.5-turbo"),
-            "api_key": os.getenv("LOCAL_LLM_API_KEY", os.getenv("OPENAI_API_KEY", "fake-key-for-local")),
+            "api_key": os.getenv("LOCAL_LLM_API_KEY", os.getenv("OPENAI_API_KEY", "")),
             "temperature": 0,
         }
         

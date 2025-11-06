@@ -7,7 +7,7 @@ import time
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime, timedelta
 
-from ..base.osint_agent import LLMOSINTAgent, AgentConfig
+from ...base.osint_agent import LLMOSINTAgent, AgentConfig
 
 
 
@@ -28,7 +28,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         import os
         
         # Import the tool module dynamically
-        tool_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'utils', 'tools', 'langchain_tools.py')
+        tool_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'agents', 'tools', 'langchain_tools.py')
         spec = importlib.util.spec_from_file_location("langchain_tools", tool_module_path)
         if spec is not None and spec.loader is not None:
             tool_module = importlib.util.module_from_spec(spec)
@@ -175,7 +175,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         date_range: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
-        Search court records for a specific name.
+        Search court records for a specific name using real data sources.
 
         Args:
             name: Name to search for
@@ -189,17 +189,37 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         self.logger.info(f"Searching court records for {name} in {jurisdiction}")
 
         try:
-            records = await self._simulate_court_record_search(name, jurisdiction, case_type, date_range)
+            # Use real public records service
+            from ....services.real_public_records_service import perform_public_records_search
+            
+            records_result = await perform_public_records_search(
+                record_type="court",
+                name=name,
+                jurisdiction=jurisdiction
+            )
+            
+            if "error" not in records_result:
+                records = records_result.get("records", [])
+                # Apply additional filtering if specified
+                if case_type:
+                    records = [r for r in records if case_type.lower() in r.get("case_type", "").lower()]
+                
+                if date_range:
+                    records = self._filter_records_by_date(records, date_range)
+            else:
+                records = []
 
             collection_data = {
                 "source": "court_records",
                 "name": name,
                 "jurisdiction": jurisdiction,
                 "case_type": case_type,
+                "date_range": date_range,
                 "timestamp": time.time(),
                 "records": records,
                 "total_records": len(records),
-                "collection_success": True
+                "collection_success": "error" not in records_result,
+                "data_source": "real_api"
             }
 
             self.logger.info(f"Found {len(records)} court records for {name}")
@@ -223,7 +243,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         jurisdiction: str = ""
     ) -> Dict[str, Any]:
         """
-        Search property records.
+        Search property records using real data sources.
 
         Args:
             address: Property address
@@ -238,9 +258,23 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         self.logger.info(f"Searching property records for: {search_criteria}")
 
         try:
-            records = await self._simulate_property_record_search(
-                address, owner_name, parcel_id, jurisdiction
+            # Use real public records service
+            from ....services.real_public_records_service import perform_public_records_search
+            
+            records_result = await perform_public_records_search(
+                record_type="property",
+                address=address or "",
+                owner_name=owner_name or "",
+                jurisdiction=jurisdiction
             )
+            
+            if "error" not in records_result:
+                records = records_result.get("records", [])
+                # Filter by parcel ID if specified
+                if parcel_id:
+                    records = [r for r in records if parcel_id.lower() in str(r).lower()]
+            else:
+                records = []
 
             collection_data = {
                 "source": "property_records",
@@ -253,7 +287,8 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
                 "timestamp": time.time(),
                 "records": records,
                 "total_records": len(records),
-                "collection_success": True
+                "collection_success": "error" not in records_result,
+                "data_source": "real_api"
             }
 
             self.logger.info(f"Found {len(records)} property records")
@@ -275,7 +310,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         filing_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Search business registration and filing records.
+        Search business registration and filing records using real data sources.
 
         Args:
             business_name: Business name to search for
@@ -288,7 +323,22 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         self.logger.info(f"Searching business filings for {business_name} in {jurisdiction}")
 
         try:
-            filings = await self._simulate_business_filing_search(business_name, jurisdiction, filing_type)
+            # Use real public records service
+            from ....services.real_public_records_service import perform_public_records_search
+            
+            filings_result = await perform_public_records_search(
+                record_type="business",
+                business_name=business_name,
+                jurisdiction=jurisdiction
+            )
+            
+            if "error" not in filings_result:
+                filings = filings_result.get("filings", [])
+                # Filter by filing type if specified
+                if filing_type:
+                    filings = [f for f in filings if filing_type.lower() in f.get("filing_type", "").lower()]
+            else:
+                filings = []
 
             collection_data = {
                 "source": "business_filings",
@@ -298,7 +348,8 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
                 "timestamp": time.time(),
                 "filings": filings,
                 "total_filings": len(filings),
-                "collection_success": True
+                "collection_success": "error" not in filings_result,
+                "data_source": "real_api"
             }
 
             self.logger.info(f"Found {len(filings)} business filings for {business_name}")
@@ -321,7 +372,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         license_number: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Search professional license records.
+        Search professional license records using real data sources.
 
         Args:
             name: Professional's name
@@ -335,9 +386,23 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         self.logger.info(f"Searching {profession} licenses for {name} in {jurisdiction}")
 
         try:
-            licenses = await self._simulate_professional_license_search(
-                name, profession, jurisdiction, license_number
+            # Use real public records service
+            from ....services.real_public_records_service import perform_public_records_search
+            
+            licenses_result = await perform_public_records_search(
+                record_type="license",
+                name=name,
+                profession=profession,
+                jurisdiction=jurisdiction
             )
+            
+            if "error" not in licenses_result:
+                licenses = licenses_result.get("licenses", [])
+                # Filter by license number if specified
+                if license_number:
+                    licenses = [l for l in licenses if license_number.lower() in str(l).lower()]
+            else:
+                licenses = []
 
             collection_data = {
                 "source": "professional_licenses",
@@ -348,7 +413,8 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
                 "timestamp": time.time(),
                 "licenses": licenses,
                 "total_licenses": len(licenses),
-                "collection_success": True
+                "collection_success": "error" not in licenses_result,
+                "data_source": "real_api"
             }
 
             self.logger.info(f"Found {len(licenses)} professional licenses")
@@ -373,7 +439,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         search_type: str = "both"
     ) -> Dict[str, Any]:
         """
-        Search patent and trademark records.
+        Search patent and trademark records using real data sources.
 
         Args:
             name: Inventor or owner name
@@ -388,9 +454,20 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         self.logger.info(f"Searching patents/trademarks for: {name or company or patent_number}")
 
         try:
-            results = await self._simulate_patent_trademark_search(
-                name, company, patent_number, trademark_name, search_type
+            # Use real public records service for patents
+            from ....services.real_public_records_service import perform_public_records_search
+            
+            patents_result = await perform_public_records_search(
+                record_type="patent",
+                inventor=name or "",
+                company=company or "",
+                patent_number=patent_number or ""
             )
+            
+            if "error" not in patents_result:
+                results = patents_result.get("results", [])
+            else:
+                results = []
 
             collection_data = {
                 "source": "patent_trademark_records",
@@ -404,7 +481,8 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
                 "timestamp": time.time(),
                 "results": results,
                 "total_results": len(results),
-                "collection_success": True
+                "collection_success": "error" not in patents_result,
+                "data_source": "real_api"
             }
 
             self.logger.info(f"Found {len(results)} patent/trademark records")
@@ -434,7 +512,7 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         if task_type == "langchain_tool":
             return await self._execute_langchain_tool_task(task)
         
-        # Handle traditional simulation tasks
+        # Handle traditional collection tasks
         results = []
 
         if task_type == "court_records":
@@ -564,179 +642,57 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
                 "status": "failed"
             }
 
-    async def _simulate_court_record_search(
-        self, 
-        name: str, 
-        jurisdiction: str, 
-        case_type: Optional[str],
-        date_range: Optional[Dict[str, str]]
-    ) -> List[Dict[str, Any]]:
-        """Simulate court record search."""
-        records = []
-        case_types = ["civil", "criminal", "family", "probate", "traffic"]
-
-        for i in range(min(5, len(case_types))):
-            record = {
-                "case_number": f"{jurisdiction.upper()}_2024_{100 + i}",
-                "case_title": f"Case involving {name}",
-                "case_type": case_type or case_types[i],
-                "filing_date": self._generate_date(i * 30),
-                "status": "active" if i < 2 else "closed",
-                "court": f"{jurisdiction} County Court",
-                "plaintiff": f"Party {i+1}",
-                "defendant": name if i % 2 == 0 else f"Party {i+2}",
-                "attorney": f"Attorney {i+1}",
-                "next_hearing": self._generate_future_date(7 + i * 7) if i < 2 else None,
-                "disposition": "Pending" if i < 2 else f"Resolution {i+1}",
-                "judgment_amount": f"${(i+1) * 5000}" if case_types[i] == "civil" else None
-            }
-            records.append(record)
-
-        return records
-
-    async def _simulate_property_record_search(
-        self, 
-        address: Optional[str],
-        owner_name: Optional[str],
-        parcel_id: Optional[str],
-        jurisdiction: str
-    ) -> List[Dict[str, Any]]:
-        """Simulate property record search."""
-        records = []
-
-        for i in range(3):
-            record = {
-                "parcel_id": parcel_id or f"{jurisdiction}-{1000 + i}",
-                "address": address or f"{100 + i} Main St, {jurisdiction}",
-                "owner_name": owner_name or f"Owner {i+1}",
-                "property_type": "Residential" if i < 2 else "Commercial",
-                "assessed_value": f"${250000 + i * 50000}",
-                "market_value": f"${300000 + i * 75000}",
-                "year_built": 1980 + i * 5,
-                "square_footage": 1500 + i * 500,
-                "bedrooms": 3 + i,
-                "bathrooms": 2 + i,
-                "last_sale_date": self._generate_date(i * 365),
-                "last_sale_price": f"${200000 + i * 100000}",
-                "tax_assessment": f"${3000 + i * 500}",
-                "zoning": "R-1" if i < 2 else "C-2",
-                "mortgage_lender": f"Bank {i+1}" if i < 2 else None
-            }
-            records.append(record)
-
-        return records
-
-    async def _simulate_business_filing_search(
-        self, 
-        business_name: str, 
-        jurisdiction: str,
-        filing_type: Optional[str]
-    ) -> List[Dict[str, Any]]:
-        """Simulate business filing search."""
-        filings = []
-        filing_types = ["articles_of_incorporation", "annual_report", "amendment", "dissolution"]
-
-        for i in range(4):
-            filing = {
-                "filing_id": f"{jurisdiction}_{business_name.replace(' ', '_')}_{100 + i}",
-                "business_name": business_name,
-                "entity_type": "LLC" if i < 2 else "Corporation",
-                "filing_type": filing_type or filing_types[i],
-                "filing_date": self._generate_date(i * 90),
-                "status": "active" if i < 3 else "inactive",
-                "jurisdiction": jurisdiction,
-                "entity_number": f"{jurisdiction[0]}{1000000 + i}",
-                "registered_agent": f"Agent {i+1}",
-                "principal_address": f"{100 + i} Business Ave, {jurisdiction}",
-                "mailing_address": f"PO Box {1000 + i}, {jurisdiction}",
-                "expiration_date": self._generate_future_date(365) if i < 3 else None,
-                "good_standing": i < 3
-            }
-            filings.append(filing)
-
-        return filings
-
-    async def _simulate_professional_license_search(
-        self, 
-        name: str, 
-        profession: str,
-        jurisdiction: str,
-        license_number: Optional[str]
-    ) -> List[Dict[str, Any]]:
-        """Simulate professional license search."""
-        licenses = []
-
-        for i in range(2):
-            license_data = {
-                "license_number": license_number or f"{profession.upper()[:3]}{10000 + i}",
-                "license_holder": name,
-                "profession": profession,
-                "specialty": f"Specialty {i+1}",
-                "jurisdiction": jurisdiction,
-                "issue_date": self._generate_date((i+1) * 365 * 3),
-                "expiration_date": self._generate_future_date(365 - i * 30),
-                "status": "active" if i == 0 else "expired",
-                "license_class": "Class A" if i == 0 else "Class B",
-                "restrictions": [f"Restriction {j+1}" for j in range(i+1)],
-                "disciplinary_actions": [] if i == 0 else ["Reprimand 2022"],
-                "education": f"University Degree {i+1}",
-                "board_certification": i == 0,
-                "verification_code": f"VERIFY{100 + i}"
-            }
-            licenses.append(license_data)
-
-        return licenses
-
-    async def _simulate_patent_trademark_search(
-        self, 
-        name: Optional[str],
-        company: Optional[str],
-        patent_number: Optional[str],
-        trademark_name: Optional[str],
-        search_type: str
-    ) -> List[Dict[str, Any]]:
-        """Simulate patent and trademark search."""
-        results = []
-
-        if search_type in ["patents", "both"]:
-            for i in range(3):
-                patent = {
-                    "type": "patent",
-                    "patent_number": patent_number or f"US{2020 + i:0>7}{chr(65 + i)}1",
-                    "title": f"Invention Title {i+1}",
-                    "inventor": name or f"Inventor {i+1}",
-                    "assignee": company or f"Company {i+1}",
-                    "filing_date": self._generate_date(i * 180),
-                    "grant_date": self._generate_date(i * 180 + 365),
-                    "expiration_date": self._generate_future_date(365 * 20 - i * 180),
-                    "status": "granted" if i < 2 else "pending",
-                    "category": f"Category {chr(65 + i)}",
-                    "abstract": f"Abstract for invention {i+1} describing the novel method...",
-                    "claims": 20 + i * 5,
-                    "citations": 5 + i * 3
-                }
-                results.append(patent)
-
-        if search_type in ["trademarks", "both"]:
-            for i in range(3):
-                trademark = {
-                    "type": "trademark",
-                    "trademark_number": f"{2020 + i:0>6}",
-                    "trademark_name": trademark_name or f"Brand Name {i+1}",
-                    "owner": company or f"Company {i+1}",
-                    "filing_date": self._generate_date(i * 120),
-                    "registration_date": self._generate_date(i * 120 + 180),
-                    "expiration_date": self._generate_future_date(365 * 10 - i * 120),
-                    "status": "registered",
-                    "class": f"Class {25 + i}",
-                    "description": f"Description of trademark {i+1} goods/services...",
-                    "logo": f"https://example.com/logos/trademark{i+1}.png",
-                    "first_use_date": self._generate_date(i * 120 - 365),
-                    "international_registration": i < 2
-                }
-                results.append(trademark)
-
-        return results
+    def _filter_records_by_date(self, records: List[Dict[str, Any]], date_range: Dict[str, str]) -> List[Dict[str, Any]]:
+        """Filter records by date range."""
+        try:
+            from datetime import datetime
+            
+            start_date = date_range.get("start")
+            end_date = date_range.get("end")
+            
+            filtered_records = []
+            for record in records:
+                # Look for date fields in various formats
+                record_date = None
+                date_fields = ["filing_date", "date_filed", "creation_date", "timestamp", "date"]
+                
+                for field in date_fields:
+                    if field in record and record[field]:
+                        try:
+                            date_str = str(record[field])
+                            # Handle different date formats
+                            if len(date_str) == 10 and date_str.count('-') == 2:  # YYYY-MM-DD
+                                record_date = datetime.strptime(date_str, '%Y-%m-%d')
+                            elif 'T' in date_str:  # ISO format
+                                record_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                            else:
+                                # Try to parse other common formats
+                                record_date = datetime.strptime(date_str[:10], '%Y-%m-%d')
+                            break
+                        except ValueError:
+                            continue
+                
+                if not record_date:
+                    continue
+                
+                # Apply date filters
+                if start_date:
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                    if record_date < start_dt:
+                        continue
+                
+                if end_date:
+                    end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                    if record_date > end_dt:
+                        continue
+                
+                filtered_records.append(record)
+            
+            return filtered_records
+            
+        except Exception as e:
+            self.logger.error(f"Date filtering failed: {e}")
+            return records
 
     def _generate_date(self, days_ago: int) -> str:
         """Generate date string for days ago."""
@@ -776,3 +732,60 @@ class PublicRecordsCollectorAgent(LLMOSINTAgent):
         """Validate the input data before processing."""
         required_fields = ["task_type"]
         return all(field in input_data for field in required_fields)
+
+    async def collect_public_records_data(self, target: str) -> Dict[str, Any]:
+        """
+        Collect public records data for a target.
+        
+        Args:
+            target: The target to collect public records data for
+            
+        Returns:
+            Dictionary containing public records collection results
+        """
+        self.logger.info(f"Collecting public records data for target: {target}")
+        
+        try:
+            # Use real public records service to find public records
+            from ....services.real_public_records_service import perform_public_records_search
+            
+            # Search for court records related to the target
+            court_result = await perform_public_records_search(
+                record_type="court_records",
+                query=target,
+                max_results=10
+            )
+            
+            if "error" not in court_result:
+                court_records = court_result.get("records", [])
+            else:
+                court_records = []
+            
+            # Also use search scraper tool for additional public records
+            tool_results = await self.use_search_tool(target, 10)
+            
+            collection_data = {
+                "source": "public_records_search",
+                "target": target,
+                "timestamp": time.time(),
+                "court_records": court_records,
+                "tool_results": tool_results,
+                "total_results": len(court_records) + tool_results.get("count", 0),
+                "collection_success": True,
+                "data_source": "real_api"
+            }
+            
+            self.logger.info(f"Public records data collected for {target}")
+            return collection_data
+            
+        except Exception as e:
+            self.logger.error(f"Error collecting public records data for {target}: {str(e)}")
+            return {
+                "error": str(e),
+                "source": "public_records_search",
+                "target": target,
+                "collection_success": False
+            }
+
+# Add alias for backward compatibility
+PublicRecordsCollector = PublicRecordsCollectorAgent

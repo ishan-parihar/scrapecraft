@@ -346,22 +346,60 @@ class EnhancedScrapingService:
             return {}
     
     async def search_urls(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:
-        """Search for URLs using a simple approach."""
-        # For now, return mock search results
-        # In a real implementation, you could use a search API like DuckDuckGo, Google, etc.
-        
-        mock_results = [
-            {
-                'url': f'https://duckduckgo.com/?q={query.replace(" ", "+")}',
-                'description': f'Search results for: {query}'
-            },
-            {
-                'url': f'https://www.google.com/search?q={query.replace(" ", "+")}',
-                'description': f'Google search for: {query}'
-            }
-        ]
-        
-        return mock_results[:max_results]
+        """Search for URLs using real search engines."""
+        try:
+            # Import real search service
+            from .real_search_service import RealSearchService
+            
+            async with RealSearchService() as search_service:
+                search_results = await search_service.multi_search(
+                    query=query,
+                    engines=['duckduckgo'],  # Use DuckDuckGo as it doesn't require API keys
+                    max_results=max_results
+                )
+            
+            # Convert search results to URL format
+            urls = []
+            for engine, results in search_results.items():
+                for result in results:
+                    if result.get('url'):
+                        urls.append({
+                            'url': result['url'],
+                            'description': result.get('snippet', result.get('title', f'Found via {engine}')),
+                            'title': result.get('title', ''),
+                            'source': engine
+                        })
+            
+            # If no results from search engines, provide fallback search URLs
+            if not urls:
+                urls = [
+                    {
+                        'url': f'https://duckduckgo.com/?q={query.replace(" ", "+")}',
+                        'description': f'Search results for: {query}',
+                        'title': f'DuckDuckGo Search: {query}',
+                        'source': 'fallback'
+                    },
+                    {
+                        'url': f'https://www.google.com/search?q={query.replace(" ", "+")}',
+                        'description': f'Google search for: {query}',
+                        'title': f'Google Search: {query}',
+                        'source': 'fallback'
+                    }
+                ]
+            
+            return urls[:max_results]
+            
+        except Exception as e:
+            logger.error(f"Enhanced search failed: {e}")
+            # Fallback to basic search URLs
+            return [
+                {
+                    'url': f'https://duckduckgo.com/?q={query.replace(" ", "+")}',
+                    'description': f'Search results for: {query}',
+                    'title': f'DuckDuckGo Search: {query}',
+                    'source': 'fallback'
+                }
+            ]
     
     async def validate_config(self) -> bool:
         """Validate if the scraping configuration is working."""

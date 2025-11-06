@@ -5,6 +5,7 @@ from . import pipelines
 from . import scraping
 from . import execution
 from . import workflow
-# from . import osint   # Requires enhanced websocket and other dependencies
+from . import osint
+from . import ai_investigation
 
-__all__ = ["pipelines", "scraping", "execution", "workflow"]
+__all__ = ['pipelines', 'scraping', 'execution', 'workflow', 'osint', 'ai_investigation']

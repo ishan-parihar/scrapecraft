@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scrapecraft-config
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: configuration
+data:
+  # Environment Configuration
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  
+  # Database Configuration
+  DATABASE_HOST: "postgres-service"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "scrapecraft"
+  DATABASE_USER: "scrapecraft_user"
+  
+  # Redis Configuration
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  
+  # CORS Configuration
+  CORS_ORIGINS: "https://scrapecraft.example.com,https://api.scrapecraft.example.com"
+  
+  # ScrapeGraphAI Settings
+  SCRAPEGRAPHAI_HEADLESS: "true"
+  SCRAPEGRAPHAI_VERBOSE: "false"
+  
+  # LLM Settings
+  LLM_TEMPERATURE: "0.1"
+  LLM_MAX_TOKENS: "4000"
+  
+  # Performance Settings
+  MAX_WORKERS: "4"
+  WORKER_TIMEOUT: "120"
+  
+  # Monitoring Configuration
+  METRICS_ENABLED: "true"
+  HEALTH_CHECK_INTERVAL: "30"
+  
+  # Security Settings
+  RATE_LIMIT_PER_MINUTE: "100"
+  MAX_REQUEST_SIZE: "10485760"  # 10MB
+  
+  # Frontend Configuration
+  REACT_APP_API_URL: "https://api.scrapecraft.example.com"
+  REACT_APP_WS_URL: "wss://api.scrapecraft.example.com"
+  
+  # Backup Configuration
+  BACKUP_SCHEDULE: "0 2 * * *"  # Daily at 2 AM
+  BACKUP_RETENTION_DAYS: "30"
+  
+  # SSL/TLS Configuration
+  TLS_ENABLED: "true"
+  SSL_CERT_PATH: "/etc/ssl/certs/scrapecraft.crt"
+  SSL_KEY_PATH: "/etc/ssl/private/scrapecraft.key"

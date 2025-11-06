@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import json
 
-from ..base.osint_agent import AgentResult, AgentCapability
+from ...base.osint_agent import AgentResult, AgentCapability
 
 
 class SynthesisAgentBase:
@@ -49,9 +49,16 @@ class SynthesisAgentBase:
         raise NotImplementedError("Each synthesis agent must implement the execute method")
     
     def _get_processing_time(self) -> float:
-        """Get simulated processing time for the agent."""
-        import random
-        return random.uniform(2.0, 6.0)
+        """Get processing time based on data complexity."""
+        # Base processing time adjusted by actual data complexity
+        base_time = 1.0
+        
+        # Adjust based on execution history (more complex data = longer processing)
+        if self.execution_history:
+            avg_complexity = sum(r.data_complexity for r in self.execution_history) / len(self.execution_history)
+            return base_time + (avg_complexity * 2.0)
+        
+        return base_time
     
     def get_status(self) -> Dict[str, Any]:
         """Get current agent status."""

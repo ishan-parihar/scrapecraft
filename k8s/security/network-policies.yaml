@@ -1,0 +1,279 @@
+# Kubernetes Network Policies for ScrapeCraft OSINT Platform
+# Implements network segmentation and traffic control
+
+---
+# Default deny all ingress and egress traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+    security.policy: default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# Allow DNS resolution (required for most services)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+    security.policy: dns-access
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# Backend API network policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-network-policy
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: backend
+    security.policy: backend-networking
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scrapecraft
+      app.kubernetes.io/component: backend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from frontend
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scrapecraft
+          app.kubernetes.io/component: frontend
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow traffic from monitoring systems
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  # Allow database access
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scrapecraft
+          app.kubernetes.io/component: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow Redis access
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scrapecraft
+          app.kubernetes.io/component: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow external API calls (LLM providers, etc.)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS
+    - protocol: TCP
+      port: 80   # HTTP (for redirects)
+
+---
+# Frontend network policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-network-policy
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: frontend
+    security.policy: frontend-networking
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scrapecraft
+      app.kubernetes.io/component: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3000
+  egress:
+  # Allow backend API access
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scrapecraft
+          app.kubernetes.io/component: backend
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow external resources (CDNs, etc.)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+# PostgreSQL network policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-network-policy
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: postgres
+    security.policy: postgres-networking
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scrapecraft
+      app.kubernetes.io/component: postgres
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow backend access only
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scrapecraft
+          app.kubernetes.io/component: backend
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow monitoring access
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 5432
+  egress:
+  # Allow DNS only
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# Redis network policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-network-policy
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: redis
+    security.policy: redis-networking
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scrapecraft
+      app.kubernetes.io/component: redis
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow backend access only
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scrapecraft
+          app.kubernetes.io/component: backend
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow monitoring access
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 6379
+  egress:
+  # Allow DNS only
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# Monitoring namespace access policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-access-policy
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+    security.policy: monitoring-access
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow monitoring systems to scrape metrics
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000  # Backend metrics
+    - protocol: TCP
+      port: 3000  # Frontend metrics (if any)

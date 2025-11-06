@@ -1,0 +1,329 @@
+{
+  "investigation": {
+    "id": "test-inv-001",
+    "title": "AI Threat Landscape Analysis 2024",
+    "description": "Comprehensive analysis of emerging AI-powered cyber threats and defense mechanisms",
+    "intelligence_requirements": [
+      {
+        "id": "ir-001",
+        "title": "AI Security Trends",
+        "description": "Identify emerging AI security trends and vulnerabilities",
+        "priority": "HIGH"
+      },
+      {
+        "id": "ir-002",
+        "title": "Threat Actor Capabilities",
+        "description": "Analyze how threat actors are leveraging AI technologies",
+        "priority": "HIGH"
+      }
+    ],
+    "status": "ACTIVE",
+    "priority": "HIGH",
+    "created_at": "2025-11-05T21:26:34.787476+00:00"
+  },
+  "search_summary": {
+    "total_searches": 4,
+    "search_queries": [
+      "AI cybersecurity threats 2024",
+      "machine learning attack vectors",
+      "artificial intelligence security vulnerabilities",
+      "AI-powered malware detection"
+    ],
+    "evidence_count": 12,
+    "sources": {
+      "duckduckgo": 12
+    },
+    "average_relevance_score": 0.8000000000000002
+  },
+  "evidence": [
+    {
+      "id": "evidence-01-00",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "The rise of AI threats and cybersecurity: predictions for 2024",
+      "content": "www.weforum.org/stories/2024/02/what-does-2024-have-in-store-for-the-world-of-cybersecurity/",
+      "url": "https://www.weforum.org/stories/2024/02/what-does-2024-have-in-store-for-the-world-of-cybersecurity/",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:36.596579+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "AI cybersecurity threats 2024",
+        "search_engine": "duckduckgo",
+        "result_index": 0,
+        "total_results": 9
+      }
+    },
+    {
+      "id": "evidence-01-01",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "7 Cybersecurity Predictions for 2024: An AI-Dominated Year",
+      "content": "www.upguard.com/blog/cybersecurity-predictions-2024",
+      "url": "https://www.upguard.com/blog/cybersecurity-predictions-2024",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:36.596607+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "AI cybersecurity threats 2024",
+        "search_engine": "duckduckgo",
+        "result_index": 1,
+        "total_results": 9
+      }
+    },
+    {
+      "id": "evidence-01-02",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "2024 AI Cyber Threats - Resilience",
+      "content": "cyberresilience.com/threatonomics/ai-cyber-threat-landscape-2024/",
+      "url": "https://cyberresilience.com/threatonomics/ai-cyber-threat-landscape-2024/",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:36.596617+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "AI cybersecurity threats 2024",
+        "search_engine": "duckduckgo",
+        "result_index": 2,
+        "total_results": 9
+      }
+    },
+    {
+      "id": "evidence-02-00",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "Machine Learning Models: A New Attack Vector for an Old Exploit",
+      "content": "protectai.com/blog/machine-learning-models-a-new-attack-vector-for-an-old-exploit",
+      "url": "https://protectai.com/blog/machine-learning-models-a-new-attack-vector-for-an-old-exploit",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:38.568007+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "machine learning attack vectors",
+        "search_engine": "duckduckgo",
+        "result_index": 0,
+        "total_results": 9
+      }
+    },
+    {
+      "id": "evidence-02-01",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "GitHub - mitre/advmlthreatmatrix: Adversarial Threat Landscape for AI ...",
+      "content": "github.com/mitre/advmlthreatmatrix",
+      "url": "https://github.com/mitre/advmlthreatmatrix",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:38.568022+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "machine learning attack vectors",
+        "search_engine": "duckduckgo",
+        "result_index": 1,
+        "total_results": 9
+      }
+    },
+    {
+      "id": "evidence-02-02",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "Attack Vectors in AI: Emerging Cyber Threats & How to Defend",
+      "content": "blog.rsisecurity.com/ai-attack-vectors/",
+      "url": "https://blog.rsisecurity.com/ai-attack-vectors/",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:38.568029+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "machine learning attack vectors",
+        "search_engine": "duckduckgo",
+        "result_index": 2,
+        "total_results": 9
+      }
+    },
+    {
+      "id": "evidence-03-00",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "Understanding AI Vulnerabilities - Harvard Magazine",
+      "content": "www.harvardmagazine.com/2025/03/artificial-intelligence-vulnerabilities-harvard-yaron-singer",
+      "url": "https://www.harvardmagazine.com/2025/03/artificial-intelligence-vulnerabilities-harvard-yaron-singer",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:40.153433+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "artificial intelligence security vulnerabilities",
+        "search_engine": "duckduckgo",
+        "result_index": 0,
+        "total_results": 8
+      }
+    },
+    {
+      "id": "evidence-03-01",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "Artificial Intelligence - CISA",
+      "content": "",
+      "url": "https://www.cisa.gov/ai",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:40.153446+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "artificial intelligence security vulnerabilities",
+        "search_engine": "duckduckgo",
+        "result_index": 1,
+        "total_results": 8
+      }
+    },
+    {
+      "id": "evidence-03-02",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "NIST Identifies Types of Cyberattacks That Manipulate Behavior of AI ...",
+      "content": "www.nist.gov/news-events/news/2024/01/nist-identifies-types-cyberattacks-manipulate-behavior-ai-systems",
+      "url": "https://www.nist.gov/news-events/news/2024/01/nist-identifies-types-cyberattacks-manipulate-behavior-ai-systems",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:40.153452+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "artificial intelligence security vulnerabilities",
+        "search_engine": "duckduckgo",
+        "result_index": 2,
+        "total_results": 8
+      }
+    },
+    {
+      "id": "evidence-04-00",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "Malware Detection with Artificial Intelligence: A Systematic Literature ...",
+      "content": "dl.acm.org/doi/full/10.1145/3638552",
+      "url": "https://dl.acm.org/doi/full/10.1145/3638552",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:41.829180+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "AI-powered malware detection",
+        "search_engine": "duckduckgo",
+        "result_index": 0,
+        "total_results": 10
+      }
+    },
+    {
+      "id": "evidence-04-01",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "Malware Now Uses AI During Execution to Mutate and Collect Data, Google ...",
+      "content": "www.securityweek.com/malware-now-uses-ai-during-execution-to-mutate-and-collect-data-google-warns/",
+      "url": "https://www.securityweek.com/malware-now-uses-ai-during-execution-to-mutate-and-collect-data-google-warns/",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:41.829193+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "AI-powered malware detection",
+        "search_engine": "duckduckgo",
+        "result_index": 1,
+        "total_results": 10
+      }
+    },
+    {
+      "id": "evidence-04-02",
+      "investigation_id": "test-inv-001",
+      "source_type": "web_search",
+      "source_name": "duckduckgo",
+      "collection_method": "automated_search",
+      "title": "Effective AI Powered Malware Detection: Protecting Your Digital Assets",
+      "content": "fidelissecurity.com/cybersecurity-101/cyberattacks/ai-powered-malware-detection/",
+      "url": "https://fidelissecurity.com/cybersecurity-101/cyberattacks/ai-powered-malware-detection/",
+      "relevance_score": 0.8,
+      "collection_timestamp": "2025-11-05T21:26:41.829200+00:00",
+      "tags": [
+        "search",
+        "web",
+        "duckduckgo",
+        "ai-security"
+      ],
+      "metadata": {
+        "search_query": "AI-powered malware detection",
+        "search_engine": "duckduckgo",
+        "result_index": 2,
+        "total_results": 10
+      }
+    }
+  ],
+  "generated_at": "2025-11-05T21:26:41.829276+00:00"
+}

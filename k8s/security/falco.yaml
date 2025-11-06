@@ -1,0 +1,396 @@
+# Falco Runtime Security Monitoring for ScrapeCraft OSINT Platform
+# Provides intrusion detection and security monitoring
+
+---
+# Falco Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-config
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: falco
+data:
+  falco_rules.yaml: |
+    # Custom Falco rules for ScrapeCraft security monitoring
+    
+    # Rule: Detect suspicious shell activity in containers
+    - rule: Suspicious Shell Activity
+      desc: Detect shell activity in application containers
+      condition: >
+        spawned_process and
+        container.name contains "scrapecraft" and
+        proc.name in (bash, sh, zsh, ksh, csh, tcsh) and
+        not user.name in (root, system)
+      output: >
+        Suspicious shell activity detected 
+        (user=%user.name command=%proc.cmdline container=%container.name image=%container.image)
+      priority: WARNING
+      tags: [container, shell, process]
+
+    # Rule: Detect unusual network connections
+    - rule: Unusual Network Connection
+      desc: Detect suspicious outbound network connections
+      condition: >
+        outbound_connect and
+        container.name contains "scrapecraft" and
+        not fd.net in (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8) and
+        not fd.net in (api.openai.com, api.openrouter.ai, scrapecraft.internal)
+      output: >
+        Unusual network connection detected 
+        (user=%user.name connection=%fd.name container=%container.name)
+      priority: HIGH
+      tags: [network, outbound, security]
+
+    # Rule: Detect file system anomalies
+    - rule: Sensitive File Access
+      desc: Detect access to sensitive files
+      condition: >
+        open_read and
+        container.name contains "scrapecraft" and
+        fd.name in (/etc/passwd, /etc/shadow, /etc/hosts, /etc/ssh/, /root/, /home/) and
+        not proc.name in (cat, grep, less, more, vi, nano)
+      output: >
+        Sensitive file access detected 
+        (user=%user.name file=%fd.name process=%proc.name container=%container.name)
+      priority: MEDIUM
+      tags: [filesystem, sensitive]
+
+    # Rule: Detect privilege escalation attempts
+    - rule: Privilege Escalation Attempt
+      desc: Detect attempts to escalate privileges
+      condition: >
+        spawned_process and
+        container.name contains "scrapecraft" and
+        proc.name in (sudo, su, chmod, chown, setuid) and
+        not user.name in (root, system)
+      output: >
+        Privilege escalation attempt detected 
+        (user=%user.name command=%proc.cmdline container=%container.name)
+      priority: HIGH
+      tags: [privilege_escalation, security]
+
+    # Rule: Detect SQL injection patterns
+    - rule: SQL Injection Attempt
+      desc: Detect potential SQL injection in process arguments
+      condition: >
+        spawned_process and
+        container.name contains "scrapecraft-backend" and
+        proc.args contains "SELECT" and
+        proc.args contains "UNION" and
+        proc.args contains "--"
+      output: >
+        SQL injection pattern detected 
+        (command=%proc.cmdline container=%container.name)
+      priority: CRITICAL
+      tags: [sql_injection, security]
+
+    # Rule: Detect data exfiltration patterns
+    - rule: Data Exfiltration Attempt
+      desc: Detect potential data exfiltration
+      condition: >
+        outbound_connect and
+        container.name contains "scrapecraft" and
+        (proc.name in (curl, wget, nc, netcat, scp, rsync) or
+         proc.args contains "archive" or
+         proc.args contains "compress")
+      output: >
+        Potential data exfiltration detected 
+        (user=%user.name command=%proc.cmdline container=%container.name)
+      priority: HIGH
+      tags: [exfiltration, data_theft]
+
+    # Rule: Detect unusual process execution
+    - rule: Unusual Process Execution
+      desc: Detect execution of unusual binaries
+      condition: >
+        spawned_process and
+        container.name contains "scrapecraft" and
+        proc.name in (nc, netcat, nmap, tcpdump, wireshark, strace, gdb, python3, perl, ruby)
+      output: >
+        Unusual process execution detected 
+        (user=%user.name process=%proc.name container=%container.name)
+      priority: MEDIUM
+      tags: [process, unusual]
+
+    # Rule: Detect container escape attempts
+    - rule: Container Escape Attempt
+      desc: Detect attempts to escape container boundaries
+      condition: >
+        spawned_process and
+        container.name contains "scrapecraft" and
+        (proc.name in (mount, umount, modprobe, insmod) or
+         proc.args contains "/proc" or
+         proc.args contains "/sys" or
+         proc.args contains "nsenter")
+      output: >
+        Container escape attempt detected 
+        (user=%user.name command=%proc.cmdline container=%container.name)
+      priority: CRITICAL
+      tags: [container_escape, critical]
+
+  falco_rules.local.yaml: |
+    # Local custom rules for specific ScrapeCraft monitoring
+    
+    # Rule: Monitor API authentication failures
+    - rule: API Authentication Failure
+      desc: Detect multiple API authentication failures
+      condition: >
+        spawned_process and
+        container.name contains "scrapecraft-backend" and
+        proc.name in (python, uvicorn) and
+        proc.args contains "401" and
+        proc.args contains "authentication"
+      output: >
+        API authentication failure detected 
+        (container=%container.name process=%proc.name)
+      priority: MEDIUM
+      tags: [authentication, api]
+
+    # Rule: Detect database connection anomalies
+    - rule: Database Connection Anomaly
+      desc: Detect unusual database connection patterns
+      condition: >
+        outbound_connect and
+        container.name contains "scrapecraft-backend" and
+        fd.net in (postgres:5432, redis:6379) and
+        proc.name not in (python, psql, redis-cli)
+      output: >
+        Database connection anomaly detected 
+        (connection=%fd.name process=%proc.name container=%container.name)
+      priority: MEDIUM
+      tags: [database, connection]
+
+---
+# Falco DaemonSet
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: falco
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: falco
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: scrapecraft
+      app.kubernetes.io/component: falco
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: scrapecraft
+        app.kubernetes.io/component: falco
+    spec:
+      serviceAccountName: falco
+      hostPID: true
+      hostNetwork: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: falco
+        image: falcosecurity/falco:latest
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true
+        env:
+        - name: FALCO_OUTPUT_PRIORITY
+          value: "WARNING"
+        - name: FALCO_JSON_OUTPUT
+          value: "true"
+        - name: FALCO_HTTP_OUTPUT_ENABLED
+          value: "true"
+        - name: FALCO_HTTP_OUTPUT_URL
+          value: "http://falco-webhook.scrapecraft.svc.cluster.local:2800/"
+        volumeMounts:
+        - name: rootfs
+          mountPath: /host
+          readOnly: true
+        - name: dev
+          mountPath: /host/dev
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: boot
+          mountPath: /host/boot
+          readOnly: true
+        - name: lib-modules
+          mountPath: /host/lib/modules
+          readOnly: true
+        - name: usr
+          mountPath: /host/usr
+          readOnly: true
+        - name: etc
+          mountPath: /host/etc
+          readOnly: true
+        - name: falco-config
+          mountPath: /etc/falco/
+          readOnly: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+          limits:
+            cpu: 500m
+            memory: 500Mi
+      volumes:
+      - name: rootfs
+        hostPath:
+          path: /
+      - name: dev
+        hostPath:
+          path: /dev
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: boot
+        hostPath:
+          path: /boot
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
+      - name: usr
+        hostPath:
+          path: /usr
+      - name: etc
+        hostPath:
+          path: /etc
+      - name: falco-config
+        configMap:
+          name: falco-config
+
+---
+# Falco Service Account and RBAC
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: falco
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: falco
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+rules:
+- apiGroups: [""]
+  resources: ["events", "pods", "nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions"]
+  resources: ["daemonsets"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: falco
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: falco
+subjects:
+- kind: ServiceAccount
+  name: falco
+  namespace: scrapecraft
+
+---
+# Falco Webhook Receiver
+apiVersion: v1
+kind: Service
+metadata:
+  name: falco-webhook
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+spec:
+  selector:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: falco-webhook
+  ports:
+  - port: 2800
+    targetPort: 2800
+    protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falco-webhook
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: falco-webhook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: scrapecraft
+      app.kubernetes.io/component: falco-webhook
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: scrapecraft
+        app.kubernetes.io/component: falco-webhook
+    spec:
+      containers:
+      - name: webhook
+        image: nginx:alpine
+        ports:
+        - containerPort: 2800
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        resources:
+          requests:
+            cpu: 50m
+            memory: 100Mi
+          limits:
+            cpu: 200m
+            memory: 200Mi
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: falco-webhook-config
+
+---
+# Webhook Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-webhook-config
+  namespace: scrapecraft
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        server {
+            listen 2800;
+            location / {
+                access_log /var/log/nginx/falco.log;
+                return 200 'OK';
+            }
+        }
+    }

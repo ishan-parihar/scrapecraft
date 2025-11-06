@@ -1,0 +1,272 @@
+# Kubernetes RBAC Configuration for ScrapeCraft OSINT Platform
+# Implements role-based access control for secure operations
+
+---
+# Service Account for Backend Pods
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scrapecraft-backend
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: backend
+
+---
+# Role for Backend Pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: scrapecraft-backend-role
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: backend
+rules:
+# Allow reading config maps
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+# Allow reading secrets (only specific ones)
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["scrapecraft-secrets", "scrapecraft-tls"]
+  verbs: ["get", "list", "watch"]
+# Allow pod info for monitoring
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+# Allow reading services
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list"]
+# Allow reading events for logging
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+---
+# Role Binding for Backend
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scrapecraft-backend-binding
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: backend
+subjects:
+- kind: ServiceAccount
+  name: scrapecraft-backend
+  namespace: scrapecraft
+roleRef:
+  kind: Role
+  name: scrapecraft-backend-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Service Account for Frontend Pods
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scrapecraft-frontend
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: frontend
+
+---
+# Role for Frontend Pods (minimal permissions)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: scrapecraft-frontend-role
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: frontend
+rules:
+# Allow reading config maps (CORS origins, etc.)
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+# Allow reading services for discovery
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list"]
+
+---
+# Role Binding for Frontend
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scrapecraft-frontend-binding
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: frontend
+subjects:
+- kind: ServiceAccount
+  name: scrapecraft-frontend
+  namespace: scrapecraft
+roleRef:
+  kind: Role
+  name: scrapecraft-frontend-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRole for Monitoring Systems
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: scrapecraft-monitoring
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: monitoring
+rules:
+# Allow reading metrics from all namespaces
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "nodes"]
+  verbs: ["get", "list", "watch"]
+# Allow reading metrics from custom resources
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+# Allow reading metrics API
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+
+---
+# ClusterRoleBinding for Monitoring
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: scrapecraft-monitoring-binding
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: monitoring
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: scrapecraft-monitoring
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Role for Security Auditing
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: scrapecraft-auditor
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+rules:
+# Allow reading all resources for auditing
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["get", "list", "watch"]
+# Allow reading audit logs
+- apiGroups: ["audit.k8s.io"]
+  resources: ["auditevents"]
+  verbs: ["get", "list", "watch"]
+
+---
+# Role Binding for Security Auditor
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scrapecraft-auditor-binding
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+subjects:
+- kind: ServiceAccount
+  name: falco
+  namespace: scrapecraft
+roleRef:
+  kind: Role
+  name: scrapecraft-auditor
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Pod Security Policy (if using PSPs - deprecated in 1.21+ but shown for completeness)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: scrapecraft-psp
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: true
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+---
+# Pod Security Policy Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: scrapecraft-psp-role
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs: ['use']
+  resourceNames: ['scrapecraft-psp']
+
+---
+# Pod Security Policy Role Binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scrapecraft-psp-binding
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+subjects:
+- kind: ServiceAccount
+  name: scrapecraft-backend
+  namespace: scrapecraft
+- kind: ServiceAccount
+  name: scrapecraft-frontend
+  namespace: scrapecraft
+roleRef:
+  kind: Role
+  name: scrapecraft-psp-role
+  apiGroup: rbac.authorization.k8s.io

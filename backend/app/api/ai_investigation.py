@@ -9,10 +9,11 @@ from typing import Dict, Any, List
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+from typing import Optional
 
 from app.services.ai_investigation import AIInvestigationService, InvestigationRequest, InvestigationResponse
 
-router = APIRouter(prefix="/api/ai-investigation", tags=["AI Investigation"])
+router = APIRouter(tags=["AI Investigation"])
 
 # Dependency to get investigation service
 def get_investigation_service():
@@ -36,7 +37,7 @@ class InvestigationResponseModel(BaseModel):
     status: str
     current_phase: InvestigationPhase
     progress_percentage: float
-    estimated_completion: datetime = None
+    estimated_completion: Optional[datetime] = None
     message: str
 
 class PhaseApprovalRequest(BaseModel):
@@ -63,10 +64,17 @@ async def start_investigation(
         # Start investigation
         result = await service.start_investigation(investigation_request)
         
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+        # Check if result indicates an error (InvestigationResponse doesn't have error field)
+        # The service would raise an exception for errors
         
-        return InvestigationResponseModel(**result)
+        return InvestigationResponseModel(
+            investigation_id=result.investigation_id,
+            status=result.status,
+            current_phase=result.current_phase,
+            progress_percentage=result.progress_percentage,
+            estimated_completion=result.estimated_completion,
+            message=result.message
+        )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -21,19 +21,19 @@ from .state import (
     add_warning,
     update_resource_costs
 )
-from ..agents.planning.objective_definition import ObjectiveDefinitionAgent
-from ..agents.planning.strategy_formulation import StrategyFormulationAgent
-from ..agents.collection.surface_web_collector import SurfaceWebCollectorAgent
-from ..agents.collection.social_media_collector import SocialMediaCollectorAgent
-from ..agents.collection.public_records_collector import PublicRecordsCollectorAgent
-from ..agents.collection.dark_web_collector import DarkWebCollectorAgent
-from ..agents.synthesis.intelligence_synthesis_agent import IntelligenceSynthesisAgent
-from ..agents.synthesis.quality_assurance_agent import QualityAssuranceAgent
-from ..agents.synthesis.report_generation_agent import ReportGenerationAgent
-from ..agents.analysis.data_fusion_agent import DataFusionAgent
-from ..agents.analysis.pattern_recognition_agent import PatternRecognitionAgent
-from ..agents.analysis.contextual_analysis_agent import ContextualAnalysisAgent
-from ..agents.base.osint_agent import AgentConfig
+from app.agents.specialized.planning.objective_definition import ObjectiveDefinitionAgent
+from app.agents.specialized.planning.strategy_formulation import StrategyFormulationAgent
+from app.agents.specialized.collection.surface_web_collector import SurfaceWebCollectorAgent
+from app.agents.specialized.collection.social_media_collector import SocialMediaCollectorAgent
+from app.agents.specialized.collection.public_records_collector import PublicRecordsCollectorAgent
+from app.agents.specialized.collection.dark_web_collector import DarkWebCollectorAgent
+from app.agents.specialized.synthesis.intelligence_synthesis_agent import IntelligenceSynthesisAgent
+from app.agents.specialized.synthesis.quality_assurance_agent import QualityAssuranceAgent
+from app.agents.specialized.synthesis.report_generation_agent import ReportGenerationAgent
+from app.agents.specialized.analysis.data_fusion_agent import DataFusionAgent
+from app.agents.specialized.analysis.pattern_recognition_agent import PatternRecognitionAgent
+from app.agents.specialized.analysis.contextual_analysis_agent import ContextualAnalysisAgent
+from app.agents.base.osint_agent import AgentConfig
 
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class OSINTWorkflow:
          # Using dynamic import to avoid import issues
          import importlib.util
          import os
-         tool_module_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils', 'tools', 'langchain_tools.py')
+         tool_module_path = os.path.join(os.path.dirname(__file__), '..', 'agents', 'tools', 'langchain_tools.py')
          spec = importlib.util.spec_from_file_location("langchain_tools", tool_module_path)
          if spec is not None and spec.loader is not None:
             tool_module = importlib.util.module_from_spec(spec)
@@ -71,7 +71,7 @@ class OSINTWorkflow:
          # Using dynamic import to avoid import issues
          import importlib.util
          import os
-         bridge_module_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils', 'bridge', 'ai_backend_bridge.py')
+         bridge_module_path = os.path.join(os.path.dirname(__file__), 'ai_backend_bridge.py')
          spec = importlib.util.spec_from_file_location("ai_backend_bridge", bridge_module_path)
          if spec is not None and spec.loader is not None:
             bridge_module = importlib.util.module_from_spec(spec)
@@ -81,7 +81,7 @@ class OSINTWorkflow:
             raise ImportError("Could not load AI backend bridge module")
          
          # Get the bridge instance (this will be awaited when used)
-         self.ai_backend_bridge = get_global_ai_bridge()
+         self.ai_backend_bridge = get_global_ai_bridge
          
          self.objective_agent = ObjectiveDefinitionAgent()
          self.strategy_agent = StrategyFormulationAgent()
@@ -532,7 +532,7 @@ async def objective_definition_node(state: InvestigationState) -> InvestigationS
 async def strategy_formulation_node(state: InvestigationState) -> InvestigationState:
     """Formulate investigation strategy using the StrategyFormulationAgent."""
     try:
-        from ..agents.planning.strategy_formulation import StrategyFormulationAgent
+        from app.agents.specialized.planning.strategy_formulation import StrategyFormulationAgent
         
         agent = StrategyFormulationAgent()
         
@@ -652,7 +652,7 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
          # Using dynamic import to avoid import issues
          import importlib.util
          import os
-         tool_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'utils', 'tools', 'langchain_tools.py')
+         tool_module_path = os.path.join(os.path.dirname(__file__), '..', 'agents', 'tools', 'langchain_tools.py')
          spec = importlib.util.spec_from_file_location("langchain_tools", tool_module_path)
          if spec is not None and spec.loader is not None:
             tool_module = importlib.util.module_from_spec(spec)
@@ -666,7 +666,7 @@ async def data_collection_node(state: InvestigationState) -> InvestigationState:
          # Using dynamic import to avoid import issues
          import importlib.util
          import os
-         bridge_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'utils', 'bridge', 'ai_backend_bridge.py')
+         bridge_module_path = os.path.join(os.path.dirname(__file__), 'ai_backend_bridge.py')
          spec = importlib.util.spec_from_file_location("ai_backend_bridge", bridge_module_path)
          if spec is not None and spec.loader is not None:
             bridge_module = importlib.util.module_from_spec(spec)
@@ -1063,7 +1063,7 @@ async def intelligence_synthesis_node(state: InvestigationState) -> Investigatio
     """Synthesize intelligence from analysis results."""
     try:
         # Initialize the enhanced intelligence synthesis agent with mandatory source links
-        from ..agents.synthesis.enhanced_intelligence_synthesis_agent_v2 import EnhancedIntelligenceSynthesisAgentV2
+        from app.agents.specialized.synthesis.enhanced_intelligence_synthesis_agent_v2 import EnhancedIntelligenceSynthesisAgentV2
         agent = EnhancedIntelligenceSynthesisAgentV2()
         
         # Prepare input data for intelligence synthesis

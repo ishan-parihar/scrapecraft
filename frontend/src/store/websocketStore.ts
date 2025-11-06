@@ -6,6 +6,7 @@ interface WebSocketState {
   ws: WebSocket | null;
   connectionStatus: 'connecting' | 'connected' | 'disconnected';
   reconnectAttempts: number;
+  currentInvestigationId: string | null;
   
   // Actions
   connect: (investigationId: string) => void;
@@ -17,9 +18,10 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
   ws: null,
   connectionStatus: 'disconnected',
   reconnectAttempts: 0,
+  currentInvestigationId: null as string | null,
 
   connect: (investigationId: string) => {
-    const { ws, disconnect } = get();
+    const { ws, disconnect, currentInvestigationId } = get();
     
     // Don't connect if investigationId is not provided or invalid
     if (!investigationId || investigationId.trim() === '' || investigationId === 'default') {
@@ -28,17 +30,23 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       return;
     }
     
-    // Disconnect existing connection
-    if (ws) {
+    // If already connected to the same investigation, don't reconnect
+    if (ws && currentInvestigationId === investigationId && get().connectionStatus === 'connected') {
+      console.log(`🔌 Already connected to investigation: ${investigationId}`);
+      return;
+    }
+    
+    // Disconnect existing connection if different investigation
+    if (ws && currentInvestigationId !== investigationId) {
       disconnect();
     }
 
     console.log(`🔌 Connecting WebSocket for investigation: ${investigationId}`);
-    set({ connectionStatus: 'connecting' });
+    set({ connectionStatus: 'connecting', currentInvestigationId: investigationId });
 
     const wsUrl = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
-    const websocket = new WebSocket(`${wsUrl}/ws/${investigationId}`);
-    console.log(`🌐 WebSocket URL: ${wsUrl}/ws/${investigationId}`);
+    const websocket = new WebSocket(`${wsUrl}/api/osint/ws/${investigationId}`);
+    console.log(`🌐 WebSocket URL: ${wsUrl}/api/osint/ws/${investigationId}`);
 
     websocket.onopen = () => {
       console.log('✅ OSINT WebSocket connected successfully!');
@@ -67,9 +75,9 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       console.log('❌ OSINT WebSocket disconnected:', event.code, event.reason);
       set({ connectionStatus: 'disconnected' });
       
-      // Attempt to reconnect
-      const { reconnectAttempts } = get();
-      if (reconnectAttempts < 5) {
+      // Attempt to reconnect only if we're still supposed to be connected to this investigation
+      const { reconnectAttempts, currentInvestigationId: currentId } = get();
+      if (currentId === investigationId && reconnectAttempts < 5) {
         setTimeout(() => {
           set((state) => ({ reconnectAttempts: state.reconnectAttempts + 1 }));
           get().connect(investigationId);
@@ -82,7 +90,7 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     const { ws } = get();
     if (ws) {
       ws.close();
-      set({ ws: null, connectionStatus: 'disconnected' });
+      set({ ws: null, connectionStatus: 'disconnected', currentInvestigationId: null });
     }
   },
 

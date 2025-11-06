@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import json
 import logging
 
-from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
+from ...base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
 class ContextualAnalysisAgent(LLMOSINTAgent):

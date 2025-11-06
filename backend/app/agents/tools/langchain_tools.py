@@ -205,130 +205,364 @@ def create_backend_scraping_tools():
     ]
 
 
-def create_mock_tools():
+def create_real_tools():
     """
-    Create mock tools for development when backend tools are not available.
+    Create real functional tools that use actual backend scraping services.
     
     Returns:
-        List of mock tools that simulate the actual tools
+        List of real tools that perform actual scraping operations
     """
     from langchain_core.tools import tool
     from pydantic import BaseModel, Field
+    import sys
+    import os
     
-    class MockScraperInput(BaseModel):
+    # Add backend to path to import services
+    backend_path = os.path.join(os.path.dirname(__file__), '..', '..')
+    if backend_path not in sys.path:
+        sys.path.insert(0, backend_path)
+    
+    try:
+        from app.services.local_scraping_service import LocalScrapingService
+        from app.services.enhanced_scraping_service import EnhancedScrapingService
+    except ImportError as e:
+        logger.error(f"Cannot import scraping services: {e}")
+        return create_fallback_tools()
+    
+    class RealScraperInput(BaseModel):
         website_url: str = Field(description="The URL of the website to scrape")
         user_prompt: str = Field(description="Natural language prompt describing what data to extract")
 
-    class MockCrawlerInput(BaseModel):
+    class RealCrawlerInput(BaseModel):
         website_url: str = Field(description="The starting URL for crawling")
         user_prompt: str = Field(description="Natural language prompt describing what data to extract")
         max_depth: int = Field(default=2, description="Maximum crawl depth")
         max_pages: int = Field(default=5, description="Maximum number of pages to crawl")
 
-    class MockSearchInput(BaseModel):
+    class RealSearchInput(BaseModel):
         search_query: str = Field(description="The search query to find relevant websites")
         max_results: int = Field(default=10, description="Maximum number of results to return")
 
-    class MockMarkdownifyInput(BaseModel):
+    class RealMarkdownifyInput(BaseModel):
         website_url: str = Field(description="The URL of the website to convert to markdown")
 
-    @tool("smart_scraper", args_schema=MockScraperInput)
-    async def mock_smart_scraper(website_url: str, user_prompt: str) -> Dict[str, Any]:
-        """Mock implementation of smart scraper tool."""
-        return {
-            "success": True,
-            "data": f"Mock scraped data from {website_url} based on prompt: {user_prompt}",
-            "url": website_url
-        }
+    @tool("smart_scraper", args_schema=RealScraperInput)
+    async def real_smart_scraper(website_url: str, user_prompt: str) -> Dict[str, Any]:
+        """Real implementation of smart scraper tool using ScrapeGraphAI."""
+        try:
+            scraping_service = LocalScrapingService()
+            results = await scraping_service.execute_pipeline(
+                urls=[website_url],
+                schema=None,
+                prompt=user_prompt
+            )
+            
+            if results and results[0]['success']:
+                return {
+                    "success": True,
+                    "data": results[0]['data'],
+                    "url": website_url,
+                    "scraped_at": results[0]['data'].get('scraped_at', '')
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": results[0]['error'] if results else "Unknown error",
+                    "url": website_url
+                }
+        except Exception as e:
+            logger.error(f"Real smart scraper failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "url": website_url
+            }
 
-    @tool("smart_crawler", args_schema=MockCrawlerInput)
-    async def mock_smart_crawler(
+    @tool("smart_crawler", args_schema=RealCrawlerInput)
+    async def real_smart_crawler(
         website_url: str,
         user_prompt: str,
         max_depth: int = 2,
         max_pages: int = 5
     ) -> Dict[str, Any]:
-        """Mock implementation of smart crawler tool."""
-        return {
-            "success": True,
-            "data": f"Mock crawled data from {website_url}",
-            "pages_crawled": min(max_pages, 2),  # Mock result
-            "starting_url": website_url
-        }
+        """Real implementation of smart crawler tool using enhanced scraping service."""
+        try:
+            crawler_service = EnhancedScrapingService()
+            
+            # Start crawling from the initial URL
+            crawled_urls = await crawler_service.crawl_website(
+                start_url=website_url,
+                max_depth=max_depth,
+                max_pages=max_pages
+            )
+            
+            # Scrape each discovered URL
+            scraping_service = LocalScrapingService()
+            crawled_data = []
+            
+            for url in crawled_urls[:max_pages]:
+                results = await scraping_service.execute_pipeline(
+                    urls=[url],
+                    schema=None,
+                    prompt=user_prompt
+                )
+                if results and results[0]['success']:
+                    crawled_data.append(results[0]['data'])
+            
+            return {
+                "success": True,
+                "data": crawled_data,
+                "pages_crawled": len(crawled_data),
+                "starting_url": website_url,
+                "discovered_urls": crawled_urls
+            }
+        except Exception as e:
+            logger.error(f"Real smart crawler failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "pages_crawled": 0,
+                "starting_url": website_url
+            }
 
-    @tool("search_scraper", args_schema=MockSearchInput)
-    async def mock_search_scraper(search_query: str, max_results: int = 10) -> Dict[str, Any]:
-        """Mock implementation of search scraper tool."""
-        results = []
-        for i in range(min(max_results, 5)):
-            results.append({
-                "url": f"https://mocksite{i+1}.com",
-                "title": f"Mock result for {search_query} - {i+1}",
-                "description": f"This is a mock description for query: {search_query}"
-            })
-        
-        return {
-            "success": True,
-            "query": search_query,
-            "results": results,
-            "count": len(results)
-        }
+    @tool("search_scraper", args_schema=RealSearchInput)
+    async def real_search_scraper(search_query: str, max_results: int = 10) -> Dict[str, Any]:
+        """Real implementation of search scraper using real search APIs."""
+        try:
+            # Use real search service
+            from app.services.real_search_service import RealSearchService
+            
+            async with RealSearchService() as search_service:
+                search_results = await search_service.search_google(search_query, max_results)
+                
+                if search_results and "error" not in search_results[0]:
+                    # Scrape the top results
+                    scraping_service = LocalScrapingService()
+                    scraped_results = []
+                    
+                    for result in search_results[:max_results]:
+                        if result.get('link'):
+                            scrape_results = await scraping_service.execute_pipeline(
+                                urls=[result['link']],
+                                schema=None,
+                                prompt=f"Extract and summarize content from this page related to: {search_query}"
+                            )
+                            if scrape_results and scrape_results[0]['success']:
+                                scraped_results.append({
+                                    "url": result['link'],
+                                    "title": result.get('title', ''),
+                                    "snippet": result.get('snippet', ''),
+                                    "scraped_content": scrape_results[0]['data'].get('content', '')
+                                })
+                    
+                    return {
+                        "success": True,
+                        "query": search_query,
+                        "results": scraped_results,
+                        "count": len(scraped_results)
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": "Search failed or no results",
+                        "query": search_query
+                    }
+        except Exception as e:
+            logger.error(f"Real search scraper failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "query": search_query
+            }
 
-    @tool("markdownify", args_schema=MockMarkdownifyInput)
-    async def mock_markdownify(website_url: str) -> Dict[str, Any]:
-        """Mock implementation of markdownify tool."""
-        return {
-            "success": True,
-            "markdown": f"# Mock Markdown Content\n\nThis is mocked markdown content from {website_url}",
-            "url": website_url
-        }
+    @tool("markdownify", args_schema=RealMarkdownifyInput)
+    async def real_markdownify(website_url: str) -> Dict[str, Any]:
+        """Real implementation of markdownify tool using actual HTML to Markdown conversion."""
+        try:
+            import aiohttp
+            import asyncio
+            import html2text
+            from bs4 import BeautifulSoup
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(website_url, timeout=30) as response:
+                    if response.status == 200:
+                        html_content = await response.text()
+                        
+                        # Convert HTML to Markdown
+                        h = html2text.HTML2Text()
+                        h.ignore_links = False
+                        h.ignore_images = False
+                        h.ignore_emphasis = False
+                        markdown = h.handle(html_content)
+                        
+                        # Extract title
+                        soup = BeautifulSoup(html_content, 'html.parser')
+                        title_tag = soup.find('title')
+                        title = title_tag.get_text().strip() if title_tag else ''
+                        
+                        return {
+                            "success": True,
+                            "markdown": markdown,
+                            "title": title,
+                            "url": website_url
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"HTTP {response.status}",
+                            "url": website_url
+                        }
+        except Exception as e:
+            logger.error(f"Real markdownify failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "url": website_url
+            }
 
     @tool("validate_urls")
-    async def mock_validate_urls(urls: List[str]) -> Dict[str, Any]:
-        """Mock implementation of URL validation tool."""
-        results = []
-        for url in urls:
-            results.append({
-                "url": url,
-                "valid": True,  # Mock all as valid
-                "status_code": 200,
-                "final_url": url
-            })
-        
-        return {
-            "urls_checked": len(urls),
-            "valid_urls": len(urls),
-            "results": results
-        }
+    async def real_validate_urls(urls: List[str]) -> Dict[str, Any]:
+        """Real implementation of URL validation using actual HTTP requests."""
+        try:
+            import aiohttp
+            import asyncio
+            
+            async def validate_single_url(session, url):
+                try:
+                    async with session.get(url, timeout=10, allow_redirects=True) as response:
+                        return {
+                            "url": url,
+                            "valid": response.status < 400,
+                            "status_code": response.status,
+                            "final_url": str(response.url),
+                            "content_type": response.headers.get('content-type', ''),
+                            "content_length": response.headers.get('content-length', '0')
+                        }
+                except Exception as e:
+                    return {
+                        "url": url,
+                        "valid": False,
+                        "status_code": None,
+                        "final_url": url,
+                        "error": str(e)
+                    }
+            
+            async with aiohttp.ClientSession() as session:
+                tasks = [validate_single_url(session, url) for url in urls]
+                results = await asyncio.gather(*tasks)
+                
+                valid_count = sum(1 for r in results if r['valid'])
+                
+                return {
+                    "urls_checked": len(urls),
+                    "valid_urls": valid_count,
+                    "results": results
+                }
+        except Exception as e:
+            logger.error(f"Real URL validation failed: {e}")
+            return {
+                "urls_checked": len(urls),
+                "valid_urls": 0,
+                "error": str(e),
+                "results": []
+            }
 
-    logger.info("Created mock tools for development")
+    logger.info("Created real functional scraping tools")
     return [
-        mock_smart_scraper,
-        mock_smart_crawler,
-        mock_search_scraper,
-        mock_markdownify,
-        mock_validate_urls
+        real_smart_scraper,
+        real_smart_crawler,
+        real_search_scraper,
+        real_markdownify,
+        real_validate_urls
     ]
 
 
-def get_available_tools(use_backend: bool = True) -> Dict[str, Any]:
+def create_fallback_tools():
+    """
+    Create fallback tools when real services are not available.
+    This provides basic functionality when external services are unavailable.
+    """
+    from langchain_core.tools import tool
+    from pydantic import BaseModel, Field
+    import aiohttp
+    import asyncio
+    from bs4 import BeautifulSoup
+    
+    class FallbackScraperInput(BaseModel):
+        website_url: str = Field(description="The URL of the website to scrape")
+        user_prompt: str = Field(description="Natural language prompt describing what data to extract")
+
+    @tool("smart_scraper", args_schema=FallbackScraperInput)
+    async def fallback_smart_scraper(website_url: str, user_prompt: str) -> Dict[str, Any]:
+        """Fallback scraper using basic web scraping."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(website_url, timeout=30) as response:
+                    if response.status == 200:
+                        html = await response.text()
+                        soup = BeautifulSoup(html, 'html.parser')
+                        
+                        title = soup.find('title')
+                        title_text = title.get_text().strip() if title else ""
+                        
+                        # Extract text content
+                        text_content = soup.get_text()
+                        cleaned_content = ' '.join(text_content.split())[:1000]  # First 1000 chars
+                        
+                        return {
+                            "success": True,
+                            "data": {
+                                "title": title_text,
+                                "content": cleaned_content,
+                                "url": website_url,
+                                "extraction_method": "fallback_beautifulsoup"
+                            },
+                            "url": website_url
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"HTTP {response.status}",
+                            "url": website_url
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "url": website_url
+            }
+    
+    return [fallback_smart_scraper]  # Add more fallback tools as needed
+
+
+def create_development_tools():
+    """
+    Create development tools for basic functionality when backend tools are not available.
+    DEPRECATED: Use create_real_tools() instead.
+    """
+    logger.warning("create_development_tools() is deprecated. Use create_real_tools() instead.")
+    return create_fallback_tools()
+
+
+def get_available_tools(use_real: bool = True) -> Dict[str, Any]:
     """
     Get a dictionary of available tools mapped by name.
     
     Args:
-        use_backend: Whether to use backend scraping tools or mock tools
+        use_real: Whether to use real scraping tools or fallback tools
         
     Returns:
         Dictionary mapping tool names to tool functions
     """
-    if use_backend:
+    if use_real:
         try:
-            tools = create_backend_scraping_tools()
+            tools = create_real_tools()
         except Exception as e:
-            logger.warning(f"Failed to create backend scraping tools: {e}. Falling back to mock tools.")
-            tools = create_mock_tools()
+            logger.warning(f"Failed to create real scraping tools: {e}. Using fallback tools.")
+            tools = create_fallback_tools()
     else:
-        tools = create_mock_tools()
+        tools = create_fallback_tools()
     
     return {tool.name: tool for tool in tools}
 
@@ -383,11 +617,11 @@ class ToolManager:
         """Lazy load tools when first accessed."""
         if self._tools is None:
             try:
-                self._tools = create_backend_scraping_tools() if self.use_backend else create_mock_tools()
+                self._tools = create_backend_scraping_tools() if self.use_backend else create_development_tools()
             except (ImportError, AttributeError):
-                # If backend tools fail to import, use mock tools
-                logger.warning("Failed to import backend tools, using mock tools")
-                self._tools = create_mock_tools()
+                # If backend tools fail to import, use development tools
+                logger.warning("Failed to import backend tools, using development tools")
+                self._tools = create_development_tools()
         return self._tools
     
     def get_tool_by_name(self, name: str) -> Optional[Any]:

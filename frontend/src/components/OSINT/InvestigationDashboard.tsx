@@ -6,9 +6,10 @@ import AgentCoordinator from '../Workflow/AgentCoordinator';
 import ThreatAssessment from './ThreatAssessment';
 import Reports from './Reports';
 import AnalysisView from './AnalysisView';
+import SearchComponent from './SearchComponent';
 import { Investigation } from '../../types/osint';
 
-type TabType = 'overview' | 'targets' | 'agents' | 'evidence' | 'analysis' | 'threats' | 'reports';
+type TabType = 'overview' | 'targets' | 'search' | 'agents' | 'evidence' | 'analysis' | 'threats' | 'reports';
 
 interface InvestigationDashboardProps {
   investigation: Investigation;
@@ -26,6 +27,7 @@ const InvestigationDashboard: React.FC<InvestigationDashboardProps> = ({
   const tabs: { id: TabType; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'targets', label: 'Targets', icon: '🎯' },
+    { id: 'search', label: 'Search', icon: '🔍' },
     { id: 'agents', label: 'Agents', icon: '🤖' },
     { id: 'evidence', label: 'Evidence', icon: '📋' },
     { id: 'analysis', label: 'Analysis', icon: '🔍' },
@@ -39,6 +41,19 @@ const InvestigationDashboard: React.FC<InvestigationDashboardProps> = ({
          return <div className="p-4">Investigation Overview content goes here</div>;
        case 'targets':
          return <TargetManager targets={investigation.targets} />;
+       case 'search':
+         return (
+           <div className="p-4">
+             <SearchComponent 
+               investigationId={investigation.id}
+               onSearchComplete={(results) => {
+                 console.log('Search completed:', results);
+                 // You could update the investigation state here
+               }}
+               placeholder="Search for information related to this investigation..."
+             />
+           </div>
+         );
        case 'agents':
          return <AgentCoordinator />;
        case 'evidence':

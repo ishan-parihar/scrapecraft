@@ -1,0 +1,349 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scrapecraft-backend
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: scrapecraft
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: scrapecraft
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: backend
+        image: scrapecraft/backend:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: metrics
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: ENVIRONMENT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: LOG_LEVEL
+        - name: DATABASE_URL
+          value: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+        - name: DATABASE_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: DATABASE_HOST
+        - name: DATABASE_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: DATABASE_PORT
+        - name: DATABASE_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: DATABASE_NAME
+        - name: DATABASE_USER
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: DATABASE_USER
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scrapecraft-secrets
+              key: database-password
+        - name: REDIS_URL
+          value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)/$(REDIS_DB)"
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: REDIS_PORT
+        - name: REDIS_DB
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: REDIS_DB
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scrapecraft-secrets
+              key: redis-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: scrapecraft-secrets
+              key: jwt-secret
+        - name: OPENROUTER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scrapecraft-secrets
+              key: openrouter-api-key
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scrapecraft-secrets
+              key: openai-api-key
+        - name: CUSTOM_LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scrapecraft-secrets
+              key: custom-llm-api-key
+        - name: CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: CORS_ORIGINS
+        - name: SCRAPEGRAPHAI_HEADLESS
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: SCRAPEGRAPHAI_HEADLESS
+        - name: SCRAPEGRAPHAI_VERBOSE
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: SCRAPEGRAPHAI_VERBOSE
+        - name: LLM_TEMPERATURE
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: LLM_TEMPERATURE
+        - name: LLM_MAX_TOKENS
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: LLM_MAX_TOKENS
+        - name: MAX_WORKERS
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: MAX_WORKERS
+        - name: WORKER_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: WORKER_TIMEOUT
+        - name: METRICS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: METRICS_ENABLED
+        - name: HEALTH_CHECK_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: HEALTH_CHECK_INTERVAL
+        - name: RATE_LIMIT_PER_MINUTE
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: RATE_LIMIT_PER_MINUTE
+        - name: MAX_REQUEST_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: MAX_REQUEST_SIZE
+        - name: TLS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: TLS_ENABLED
+        - name: SSL_CERT_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: SSL_CERT_PATH
+        - name: SSL_KEY_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: scrapecraft-config
+              key: SSL_KEY_PATH
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+        volumeMounts:
+        - name: ssl-certs
+          mountPath: /etc/ssl/certs/scrapecraft.crt
+          subPath: tls.crt
+          readOnly: true
+        - name: ssl-certs
+          mountPath: /etc/ssl/private/scrapecraft.key
+          subPath: tls.key
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1000
+      volumes:
+      - name: ssl-certs
+        secret:
+          secretName: scrapecraft-tls
+          defaultMode: 0600
+      - name: tmp
+        emptyDir: {}
+      imagePullSecrets:
+      - name: scrapecraft-registry-secret
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60
+      dnsPolicy: ClusterFirst
+      schedulerName: default-scheduler
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - scrapecraft
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                  - backend
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+      - key: "scrapecraft-dedicated"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      nodeSelector:
+        kubernetes.io/os: linux
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: scrapecraft-backend-hpa
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: scrapecraft-backend
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      selectPolicy: Min

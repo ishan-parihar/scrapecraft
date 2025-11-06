@@ -1,0 +1,199 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scrapecraft-ingress
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: ingress
+  annotations:
+    # Ingress Controller Annotations
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    
+    # TLS Configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    
+    # Security Headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss:;
+      more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
+    
+    # Rate Limiting
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    
+    # Size Limits
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    
+    # WebSocket Support
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+    
+    # Backend Configuration
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    
+    # Custom Error Pages
+    nginx.ingress.kubernetes.io/custom-http-errors: "404,500,502,503,504"
+    
+    # Logging
+    nginx.ingress.kubernetes.io/log-format-upstream: '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_status] [$proxy_upstream_addr] [$proxy_upstream_response_time]'
+    
+spec:
+  tls:
+  - hosts:
+    - scrapecraft.example.com
+    - api.scrapecraft.example.com
+    secretName: scrapecraft-tls
+  rules:
+  - host: scrapecraft.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 80
+  - host: api.scrapecraft.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend-service
+            port:
+              number: 8000
+
+---
+# Ingress for monitoring endpoints (internal access only)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scrapecraft-monitoring-ingress
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: monitoring
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    nginx.ingress.kubernetes.io/auth-type: "basic"
+    nginx.ingress.kubernetes.io/auth-secret: "monitoring-auth"
+    nginx.ingress.kubernetes.io/auth-realm: "Monitoring Access"
+spec:
+  tls:
+  - hosts:
+    - monitoring.scrapecraft.example.com
+    secretName: scrapecraft-monitoring-tls
+  rules:
+  - host: monitoring.scrapecraft.example.com
+    http:
+      paths:
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: backend-service
+            port:
+              number: 8000
+      - path: /postgres-metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: postgres-service
+            port:
+              number: 9187
+      - path: /redis-metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: redis-service
+            port:
+              number: 9121
+
+---
+# Network Policies for Security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrapecraft-network-policy
+  namespace: scrapecraft
+  labels:
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 8000
+  # Allow traffic within namespace
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+    - protocol: TCP
+      port: 8000  # Backend
+    - protocol: TCP
+      port: 80    # Frontend
+  # Allow traffic from monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000  # Backend metrics
+    - protocol: TCP
+      port: 9187  # PostgreSQL metrics
+    - protocol: TCP
+      port: 9121  # Redis metrics
+  egress:
+  # Allow DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow external HTTP/HTTPS for scraping
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+  # Allow LLM provider APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow communication within namespace
+  - to:
+    - podSelector: {}

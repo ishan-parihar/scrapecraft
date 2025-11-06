@@ -1,0 +1,30 @@
+apiVersion: v2
+name: scrapecraft
+description: ScrapeCraft OSINT Platform Helm Chart
+type: application
+version: 1.0.0
+appVersion: "3.3.0"
+home: https://github.com/scrapecraft/scrapecraft
+sources:
+  - https://github.com/scrapecraft/scrapecraft
+maintainers:
+  - name: ScrapeCraft Team
+    email: ops@scrapecraft.com
+keywords:
+  - osint
+  - security
+  - investigation
+  - scraping
+  - intelligence
+annotations:
+  category: Security
+  licenses: Apache-2.0
+dependencies:
+  - name: postgresql
+    version: 12.1.9
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: 17.3.7
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

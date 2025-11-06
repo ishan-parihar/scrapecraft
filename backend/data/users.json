@@ -1,0 +1,22 @@
+{
+  "users": {
+    "admin": {
+      "username": "admin",
+      "email": "admin@scrapecraft.local",
+      "full_name": "Default Admin User",
+      "hashed_password": "$5$rounds=535000$47Vg9j3.ZEJq6E4B$ejDv2Z07Al9V1RTRT48Ui3RGZBWkuZhj/xfKDAn1vy7",
+      "disabled": false,
+      "role": "admin",
+      "is_default": true,
+      "created_at": "2025-11-05T00:03:21.791195",
+      "updated_at": "2025-11-05T00:03:21.791209",
+      "id": "user-21232f29"
+    }
+  },
+  "metadata": {
+    "created_at": "2025-11-04T23:59:23.187399",
+    "version": "1.0",
+    "updated_at": "2025-11-05T00:03:21.791235",
+    "user_count": 1
+  }
+}

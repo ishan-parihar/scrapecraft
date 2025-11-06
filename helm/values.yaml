@@ -1,0 +1,415 @@
+# ScrapeCraft OSINT Platform - Default Values
+# These values are optimized for production deployment
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+  resources: {}
+
+# Common labels and annotations
+commonLabels:
+  app: scrapecraft
+  component: osint-platform
+  managed-by: helm
+
+commonAnnotations:
+  helm.sh/resource-policy: keep
+  scrapecraft.com/version: "3.3.0"
+
+# Replica count configuration
+replicaCount:
+  backend: 3
+  frontend: 2
+  postgres: 1
+  redis: 1
+
+# Image configuration
+image:
+  backend:
+    repository: scrapecraft/backend
+    tag: "3.3.0"
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: scrapecraft/frontend
+    tag: "3.3.0"
+    pullPolicy: IfNotPresent
+  postgres:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  redis:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: "scrapecraft-service-account"
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Container security context
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# Service configuration
+service:
+  backend:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9090"
+      prometheus.io/path: "/metrics"
+  frontend:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  postgres:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+  redis:
+    type: ClusterIP
+    port: 6379
+    targetPort: 6379
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, User-Agent, DNT, Cache-Control, X-Mx-ReqToken, Keep-Alive, X-Requested-With, If-Modified-Since"
+  hosts:
+    - host: scrapecraft.com
+      paths:
+        - path: /api(/|$)(.*)
+          pathType: Prefix
+          service: backend
+        - path: /(.*)
+          pathType: Prefix
+          service: frontend
+    - host: api.scrapecraft.com
+      paths:
+        - path: /(/|$)(.*)
+          pathType: Prefix
+          service: backend
+  tls:
+    - secretName: scrapecraft-tls
+      hosts:
+        - scrapecraft.com
+        - api.scrapecraft.com
+
+# Resource configuration
+resources:
+  backend:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  frontend:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  postgres:
+    limits:
+      cpu: 1000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 2Gi
+  redis:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Autoscaling configuration
+autoscaling:
+  backend:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  frontend:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Node selector and affinity
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - scrapecraft
+          topologyKey: kubernetes.io/hostname
+
+# Persistence configuration
+persistence:
+  postgres:
+    enabled: true
+    storageClass: "fast-ssd"
+    size: 100Gi
+    accessMode: ReadWriteOnce
+  redis:
+    enabled: true
+    storageClass: "fast-ssd"
+    size: 10Gi
+    accessMode: ReadWriteOnce
+
+# Database configuration
+database:
+  name: "scrapecraft_prod"
+  user: "scrapecraft"
+  password: ""  # Set via secret
+  port: 5432
+  maxConnections: 200
+  sharedBuffers: "256MB"
+  effectiveCacheSize: "1GB"
+  maintenanceWorkMem: "64MB"
+  checkpointCompletionTarget: "0.9"
+  walBuffers: "16MB"
+  defaultStatisticsTarget: "100"
+
+# Redis configuration
+redis:
+  port: 6379
+  maxMemory: "512mb"
+  maxMemoryPolicy: "allkeys-lru"
+  saveInterval: "900 1"
+  appendOnly: "yes"
+  appendFsync: "everysec"
+
+# Application configuration
+config:
+  environment: "production"
+  logLevel: "WARNING"
+  debugMode: false
+  enableMetrics: true
+  enableAPM: true
+  enableCache: true
+  enableCompression: true
+  enableSecurityHeaders: true
+  
+  # Security
+  secretKey: ""  # Set via secret
+  algorithm: "RS256"
+  accessTokenExpireMinutes: 60
+  refreshTokenExpireDays: 30
+  enableCSRFProtection: true
+  
+  # Rate limiting
+  enableRateLimiting: true
+  rateLimitRequests: 100
+  rateLimitWindow: 60
+  
+  # External APIs
+  shodanApiKey: ""  # Set via secret
+  virustotalApiKey: ""  # Set via secret
+  abuseipdbApiKey: ""  # Set via secret
+  
+  # Monitoring
+  sentryDSN: ""  # Set via secret
+  prometheusEnabled: true
+  prometheusPort: 9090
+  
+  # Backup
+  enableBackups: true
+  backupSchedule: "0 2 * * *"
+  backupRetentionDays: 30
+  backupEncryption: true
+
+# Secret management
+secrets:
+  enabled: true
+  name: "scrapecraft-secrets"
+  stringData:
+    DATABASE_PASSWORD: ""  # Required
+    SECRET_KEY: ""  # Required
+    PRODUCTION_SECRET_KEY: ""  # Required
+    SHODAN_API_KEY: ""
+    VIRUSTOTAL_API_KEY: ""
+    ABUSEIPDB_API_KEY: ""
+    SENTRY_DSN: ""
+    JWT_PRIVATE_KEY: ""
+    JWT_PUBLIC_KEY: ""
+
+# Network policies
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 80
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+# Pod disruption budget
+podDisruptionBudget:
+  backend:
+    enabled: true
+    minAvailable: 2
+  frontend:
+    enabled: true
+    minAvailable: 1
+
+# Health check configuration
+healthChecks:
+  backend:
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8000
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 30
+  frontend:
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+# Monitoring configuration
+monitoring:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+  grafana:
+    enabled: true
+    dashboards:
+      enabled: true
+      configMaps:
+        - scrapecraft-dashboard
+  alertmanager:
+    enabled: true
+    configMap: alertmanager-config
+
+# External dependencies
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: ""
+    username: scrapecraft
+    database: scrapecraft_prod
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: "fast-ssd"
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 2Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: scrapecraft-secrets
+    existingSecretPasswordKey: REDIS_PASSWORD
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "fast-ssd"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi

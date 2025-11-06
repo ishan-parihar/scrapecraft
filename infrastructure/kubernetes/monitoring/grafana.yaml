@@ -1,0 +1,660 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  scrapecraft-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "ScrapeCraft Platform Overview",
+        "tags": ["scrapecraft", "overview"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "API Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total{job=\"scrapecraft-backend\"}[5m])) by (method)",
+                "legendFormat": "{{method}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+            "yAxes": [{"label": "Requests/sec"}]
+          },
+          {
+            "id": 2,
+            "title": "Error Rate",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total{job=\"scrapecraft-backend\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"scrapecraft-backend\"}[5m]))",
+                "legendFormat": "Error Rate"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percentunit",
+                "thresholds": {
+                  "steps": [
+                    {"color": "green", "value": null},
+                    {"color": "yellow", "value": 0.01},
+                    {"color": "red", "value": 0.05}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 3,
+            "title": "Response Time (95th percentile)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"scrapecraft-backend\"}[5m])) by (le))",
+                "legendFormat": "95th percentile"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+            "yAxes": [{"label": "Seconds"}]
+          },
+          {
+            "id": 4,
+            "title": "Active Investigations",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(investigations_active_total)",
+                "legendFormat": "Active Investigations"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "Completed Investigations",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(rate(investigations_completed_total[1h]))",
+                "legendFormat": "Completed/hr"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
+          },
+          {
+            "id": 6,
+            "title": "Scraping Operations",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(scraping_operations_total[5m])) by (status)",
+                "legendFormat": "{{status}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          },
+          {
+            "id": 7,
+            "title": "Database Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "pg_stat_activity_count{datname=\"scrapecraft\"}",
+                "legendFormat": "Active Connections"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+          },
+          {
+            "id": 8,
+            "title": "Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "process_resident_memory_bytes{job=\"scrapecraft-backend\"} / 1024 / 1024 / 1024",
+                "legendFormat": "Memory (GB)"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
+          }
+        ],
+        "time": {"from": "now-1h", "to": "now"},
+        "refresh": "5s"
+      }
+    }
+  
+  scrapecraft-database.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "ScrapeCraft Database Monitoring",
+        "tags": ["scrapecraft", "database"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Database Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "pg_stat_activity_count{datname=\"scrapecraft\"}",
+                "legendFormat": "Active Connections"
+              },
+              {
+                "expr": "pg_settings_max_connections",
+                "legendFormat": "Max Connections"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Query Duration",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "pg_stat_statements_mean_time_seconds",
+                "legendFormat": "Mean Query Time"
+              },
+              {
+                "expr": "histogram_quantile(0.95, pg_stat_statements_query_time_seconds_bucket)",
+                "legendFormat": "95th percentile"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "Database Size",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "pg_database_size_bytes{datname=\"scrapecraft\"} / 1024 / 1024 / 1024",
+                "legendFormat": "Database Size (GB)"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Transactions per Second",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(rate(pg_stat_database_xact_commit{datname=\"scrapecraft\"}[5m])) + sum(rate(pg_stat_database_xact_rollback{datname=\"scrapecraft\"}[5m]))",
+                "legendFormat": "TPS"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "Cache Hit Ratio",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "pg_stat_database_blks_hit{datname=\"scrapecraft\"} / (pg_stat_database_blks_hit{datname=\"scrapecraft\"} + pg_stat_database_blks_read{datname=\"scrapecraft\"})",
+                "legendFormat": "Cache Hit Ratio"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percentunit",
+                "thresholds": {
+                  "steps": [
+                    {"color": "red", "value": null},
+                    {"color": "yellow", "value": 0.9},
+                    {"color": "green", "value": 0.95}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 6,
+            "title": "Lock Waits",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "pg_locks_count",
+                "legendFormat": "Lock Count"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8}
+          }
+        ],
+        "time": {"from": "now-1h", "to": "now"},
+        "refresh": "10s"
+      }
+    }
+  
+  scrapecraft-security.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "ScrapeCraft Security Monitoring",
+        "tags": ["scrapecraft", "security"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Failed Login Attempts",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(auth_login_attempts_total{status=\"failed\"}[5m])) by (source_ip)",
+                "legendFormat": "{{source_ip}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Unauthorized Requests",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total{job=\"scrapecraft-backend\",status=\"401\"}[5m]))",
+                "legendFormat": "401 Rate"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "steps": [
+                    {"color": "green", "value": null},
+                    {"color": "yellow", "value": 10},
+                    {"color": "red", "value": 50}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 3,
+            "title": "Security Events",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "security_events_total",
+                "legendFormat": "{{event_type}} - {{severity}}",
+                "format": "table"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+          },
+          {
+            "id": 4,
+            "title": "Data Export Operations",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(data_export_operations_total[5m])) by (user_id)",
+                "legendFormat": "{{user_id}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "Privilege Escalation Attempts",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(rate(auth_privilege_escalation_attempts_total[5m]))",
+                "legendFormat": "Attempts/min"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 12, "y": 8},
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "steps": [
+                    {"color": "green", "value": null},
+                    {"color": "red", "value": 0}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 6,
+            "title": "Top API Endpoints by Usage",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "topk(10, sum(rate(http_requests_total{job=\"scrapecraft-backend\"}[5m])) by (endpoint))",
+                "legendFormat": "{{endpoint}}",
+                "format": "table"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8}
+          }
+        ],
+        "time": {"from": "now-1h", "to": "now"},
+        "refresh": "30s"
+      }
+    }
+  
+  scrapecraft-performance.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "ScrapeCraft Performance Metrics",
+        "tags": ["scrapecraft", "performance"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "CPU Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(process_cpu_seconds_total{job=\"scrapecraft-backend\"}[5m]) * 100",
+                "legendFormat": "CPU %"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "process_resident_memory_bytes{job=\"scrapecraft-backend\"} / 1024 / 1024 / 1024",
+                "legendFormat": "Memory (GB)"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "WebSocket Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "websocket_connections_active",
+                "legendFormat": "Active Connections"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "LLM Request Latency",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(llm_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.50, rate(llm_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "50th percentile"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "Disk Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "(node_filesystem_size_bytes{fstype!=\"tmpfs\"} - node_filesystem_avail_bytes{fstype!=\"tmpfs\"}) / node_filesystem_size_bytes{fstype!=\"tmpfs\"} * 100",
+                "legendFormat": "{{mountpoint}} - {{instance}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+          }
+        ],
+        "time": {"from": "now-1h", "to": "now"},
+        "refresh": "5s"
+      }
+    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning-datasources
+  namespace: monitoring
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+        editable: true
+        jsonData:
+          timeInterval: "5s"
+          queryTimeout: "60s"
+          httpMethod: "POST"
+      - name: ScrapeCraft-Backend
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc.cluster.local:9090
+        database: "scrapecraft-backend"
+        jsonData:
+          timeInterval: "15s"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning-dashboards
+  namespace: monitoring
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    component: dashboard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: grafana
+      component: dashboard
+  template:
+    metadata:
+      labels:
+        app: grafana
+        component: dashboard
+    spec:
+      securityContext:
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.0.0
+        ports:
+        - containerPort: 3000
+          name: web
+        env:
+        - name: GF_SECURITY_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secrets
+              key: admin-user
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secrets
+              key: admin-password
+        - name: GF_INSTALL_PLUGINS
+          value: "grafana-piechart-panel,grafana-worldmap-panel,grafana-clock-panel"
+        - name: GF_SMTP_ENABLED
+          value: "true"
+        - name: GF_SMTP_HOST
+          value: "localhost:587"
+        - name: GF_SMTP_FROM_ADDRESS
+          value: "grafana@scrapecraft.local"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "false"
+        - name: GF_AUTH_BASIC_ENABLED
+          value: "true"
+        - name: GF_AUTH_LDAP_ENABLED
+          value: "false"
+        - name: GF_SECURITY_ALLOW_EMBEDDING
+          value: "false"
+        - name: GF_SECURITY_COOKIE_SECURE
+          value: "true"
+        - name: GF_SECURITY_COOKIE_SAMESITE
+          value: "strict"
+        - name: GF_SECURITY_CONTENT_TYPE_PROTECTION
+          value: "true"
+        - name: GF_SECURITY_X_CONTENT_TYPE_OPTIONS
+          value: "nosniff"
+        - name: GF_SECURITY_X_XSS_PROTECTION
+          value: "1; mode=block"
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        - name: grafana-dashboards
+          mountPath: /var/lib/grafana/dashboards/default
+        - name: grafana-provisioning-datasources
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: grafana-provisioning-dashboards
+          mountPath: /etc/grafana/provisioning/dashboards
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: grafana-storage
+        persistentVolumeClaim:
+          claimName: grafana-storage
+      - name: grafana-dashboards
+        configMap:
+          name: grafana-dashboards
+      - name: grafana-provisioning-datasources
+        configMap:
+          name: grafana-provisioning-datasources
+      - name: grafana-provisioning-dashboards
+        configMap:
+          name: grafana-provisioning-dashboards
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    component: dashboard
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    name: web
+  selector:
+    app: grafana
+    component: dashboard
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-storage
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secrets
+  namespace: monitoring
+type: Opaque
+data:
+  admin-user: YWRtaW4=  # admin
+  admin-password: YWRtaW4xMjM=  # admin123
+
+---
+# Grafana Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: monitoring
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  tls:
+  - hosts:
+    - grafana.scrapecraft.local
+    secretName: grafana-tls
+  rules:
+  - host: grafana.scrapecraft.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000

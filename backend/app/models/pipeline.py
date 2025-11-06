@@ -15,7 +15,7 @@ class Pipeline(BaseModel):
     name: str
     description: Optional[str] = None
     urls: List[str] = []
-    schema: Dict[str, Any] = {}
+    pipeline_schema: Dict[str, Any] = {}
     code: str = ""
     status: PipelineStatus = PipelineStatus.IDLE
     created_at: datetime
@@ -28,13 +28,13 @@ class PipelineCreate(BaseModel):
     name: str
     description: Optional[str] = None
     urls: Optional[List[HttpUrl]] = None
-    schema: Optional[Dict[str, Any]] = None
+    pipeline_schema: Optional[Dict[str, Any]] = None
 
 class PipelineUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     urls: Optional[List[str]] = None
-    schema: Optional[Dict[str, Any]] = None
+    pipeline_schema: Optional[Dict[str, Any]] = None
     code: Optional[str] = None
 
 class PipelineExecution(BaseModel):

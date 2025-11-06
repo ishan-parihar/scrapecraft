@@ -1,0 +1,115 @@
+{
+  "timestamp": "2025-11-05T15:31:48.298781",
+  "workflow_issues": [
+    {
+      "component": "WebSocket Connection",
+      "issue": "Frontend connects to wrong WebSocket endpoint",
+      "details": {
+        "frontend_expects": "/ws/{investigationId}",
+        "backend_provides": "/api/osint/ws/{investigation_id}",
+        "problem": "URL structure mismatch causing connection failures"
+      }
+    },
+    {
+      "component": "AI Investigation Service",
+      "issue": "No real-time progress updates via WebSocket",
+      "details": {
+        "service": "app/services/ai_investigation.py",
+        "problem": "Background tasks run silently without broadcasting status changes"
+      }
+    },
+    {
+      "component": "Investigation Management",
+      "issue": "AI investigations don't create OSINT records",
+      "details": {
+        "ai_system": "/api/ai-investigation/*",
+        "osint_system": "/api/osint/investigations/*",
+        "problem": "Separate systems don't share data"
+      }
+    },
+    {
+      "component": "InvestigationPlanner.tsx",
+      "issue": "Uses wrong investigation ID for WebSocket connection",
+      "details": {
+        "api_response": "response.data.investigation_id",
+        "websocket_uses": "investigationId from props",
+        "problem": "Different IDs cause WebSocket connection to wrong channel"
+      }
+    }
+  ],
+  "root_causes": [
+    {
+      "cause": "Separate Development of AI and OSINT Systems",
+      "impact": "No integration between investigation types",
+      "components": [
+        "AI Investigation API",
+        "OSINT API",
+        "Agent Management"
+      ]
+    },
+    {
+      "cause": "Missing Real-time Communication Architecture",
+      "impact": "No progress updates reach frontend",
+      "components": [
+        "WebSocket Broadcasting",
+        "Background Task Communication"
+      ]
+    },
+    {
+      "cause": "Frontend State Management Not Updated for AI Investigations",
+      "impact": "Frontend can't handle AI investigation responses",
+      "components": [
+        "InvestigationPlanner",
+        "WebSocket Store",
+        "Agent Coordinator"
+      ]
+    }
+  ],
+  "specific_fixes": [
+    {
+      "file": "app/services/ai_investigation.py",
+      "change": "Add WebSocket broadcasting to investigation progress",
+      "code": "\n# Add to ai_investigation.py\nfrom app.services.enhanced_websocket import enhanced_manager\n\n# After each phase transition:\nawait enhanced_manager.broadcast(\n    f\"investigation_{investigation_id}\",\n    {\n        \"type\": \"investigation:updated\",\n        \"investigation_id\": investigation_id,\n        \"status\": investigation[\"status\"],\n        \"current_phase\": investigation[\"current_phase\"],\n        \"progress_percentage\": investigation[\"progress_percentage\"]\n    }\n)\n        "
+    },
+    {
+      "file": "frontend/src/store/websocketStore.ts",
+      "change": "Update WebSocket URL to match backend",
+      "code": "// Change from: /ws/${investigationId}\n// To: /api/osint/ws/${investigationId}"
+    },
+    {
+      "file": "app/services/ai_investigation.py",
+      "change": "Create OSINT investigation records for AI investigations",
+      "code": "\n# When starting AI investigation, also create OSINT record:\nosint_investigation = await osint_service.create_investigation({\n    \"title\": f\"AI: {request.target}\",\n    \"objective\": request.objective,\n    \"status\": \"active\",\n    \"priority\": request.priority,\n    \"ai_investigation_id\": investigation_id\n})\n        "
+    },
+    {
+      "file": "app/services/ai_investigation.py",
+      "change": "Assign agents when AI investigation starts",
+      "code": "\n# Auto-assign collection agents:\nagents = await agent_service.assign_agents_to_investigation(\n    investigation_id, \n    [\"social_media_collector\", \"surface_web_collector\", \"public_records_collector\"]\n)\n        "
+    },
+    {
+      "file": "frontend/src/components/OSINT/Chat/InvestigationPlanner.tsx",
+      "change": "Use correct investigation ID for WebSocket connection",
+      "code": "// Use response.data.investigation_id instead of props.investigationId"
+    }
+  ],
+  "frontend_backend_mismatches": [
+    {
+      "component": "WebSocket Endpoints",
+      "frontend": "/ws/{investigationId}",
+      "backend": "/api/osint/ws/{investigation_id}",
+      "fix": "Update frontend to use backend endpoint"
+    },
+    {
+      "component": "Investigation APIs",
+      "frontend": "Uses /ai-investigation/start but expects OSINT features",
+      "backend": "AI and OSINT systems are separate",
+      "fix": "Integrate the two systems or create unified API"
+    },
+    {
+      "component": "Agent Management",
+      "frontend": "Expects agents via /osint/investigations/{id}/agents",
+      "backend": "AI investigations don't create OSINT records",
+      "fix": "Create OSINT records for AI investigations"
+    }
+  ]
+}

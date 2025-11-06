@@ -11,7 +11,7 @@ import json
 import re
 import hashlib
 
-from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
+from ...base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
 class DataFusionAgent(LLMOSINTAgent):

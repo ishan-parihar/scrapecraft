@@ -10,7 +10,7 @@ from app.models.workflow import (
     WorkflowState, WorkflowPhase, URLInfo, SchemaField, 
     ApprovalRequest, WorkflowTransition
 )
-from app.agents.langgraph_agent import ScrapeCraftAgent
+from app.agents.legacy.langgraph_agent import ScrapeCraftAgent
 from app.services.websocket import ConnectionManager
 
 
@@ -18,22 +18,66 @@ class WorkflowManager:
     """Manages workflow states and coordinates between agent and frontend."""
     
     def __init__(self, connection_manager: ConnectionManager):
+        # Initialize database persistence service
+        try:
+            from .database import DatabasePersistenceService
+            self.db_persistence = DatabasePersistenceService()
+            self.db_persistence.initialize_database()
+            print("WorkflowManager database persistence service initialized")
+        except Exception as e:
+            print(f"Failed to initialize WorkflowManager database persistence: {e}")
+            self.db_persistence = None
+        
+        # Fallback to in-memory storage if database fails
         self.workflows: Dict[str, WorkflowState] = {}
         self.agent = ScrapeCraftAgent()
         self.connection_manager = connection_manager
         self.approval_callbacks: Dict[str, asyncio.Event] = {}
-        
-    def get_workflow(self, pipeline_id: str) -> Optional[WorkflowState]:
-        """Get workflow state for a pipeline."""
-        return self.workflows.get(pipeline_id)
     
-    def create_workflow(self, pipeline_id: str, user: str = "system") -> WorkflowState:
+    async def _store_workflow_state(self, pipeline_id: str, workflow: WorkflowState) -> bool:
+        """Store workflow state using database persistence with fallback."""
+        workflow_data = workflow.model_dump(mode='json')
+        
+        if self.db_persistence:
+            try:
+                success = await self.db_persistence.store_workflow_state(pipeline_id, workflow_data)
+                if success:
+                    return True
+            except Exception as e:
+                print(f"Workflow database persistence failed, using fallback: {e}")
+        
+        # Fallback to in-memory storage
+        self.workflows[pipeline_id] = workflow
+        return True
+    
+    async def _get_workflow_state(self, pipeline_id: str) -> Optional[WorkflowState]:
+        """Get workflow state using database persistence with fallback."""
+        if self.db_persistence:
+            try:
+                state_data = await self.db_persistence.get_workflow_state(pipeline_id)
+                if state_data:
+                    # Reconstruct WorkflowState from dictionary
+                    return WorkflowState(**state_data)
+            except Exception as e:
+                print(f"Workflow database retrieval failed, using fallback: {e}")
+        
+        # Fallback to in-memory storage
+        return self.workflows.get(pipeline_id)
+        
+    async def get_workflow(self, pipeline_id: str) -> Optional[WorkflowState]:
+        """Get workflow state for a pipeline."""
+        return await self._get_workflow_state(pipeline_id)
+    
+    async def create_workflow(self, pipeline_id: str, user: str = "system") -> WorkflowState:
         """Create a new workflow state."""
         workflow = WorkflowState(
             pipeline_id=pipeline_id,
             created_by=user
         )
-        self.workflows[pipeline_id] = workflow
+        
+        # Store using persistence layer
+        await self._store_workflow_state(pipeline_id, workflow)
+        
         return workflow
     
     async def process_message(
@@ -44,7 +88,9 @@ class WorkflowManager:
     ) -> Dict[str, Any]:
         """Process a message through the workflow."""
         # Get or create workflow
-        workflow = self.get_workflow(pipeline_id) or self.create_workflow(pipeline_id, user)
+        workflow = await self.get_workflow(pipeline_id)
+        if not workflow:
+            workflow = await self.create_workflow(pipeline_id, user)
         
         try:
             # Process through agent
@@ -52,6 +98,9 @@ class WorkflowManager:
             
             # Update workflow state based on result
             await self._update_workflow_from_result(workflow, result)
+            
+            # Store updated workflow state
+            await self._store_workflow_state(pipeline_id, workflow)
             
             # Broadcast state update
             await self._broadcast_workflow_update(workflow)
@@ -65,7 +114,7 @@ class WorkflowManager:
             # Fallback response when LLM is not available
             print(f"LLM processing failed: {e}")
             
-            fallback_response = f"I received your message: '{message}'. I'm currently running in mock mode, so I can't process complex requests, but I can help you with basic scraping tasks."
+            fallback_response = f"I received your message: '{message}'. I'm currently running in fallback mode, so I can't process complex requests, but I can help you with basic scraping tasks."
             
             return {
                 "response": fallback_response,
@@ -80,7 +129,7 @@ class WorkflowManager:
         user: str = "user"
     ) -> WorkflowState:
         """Manually update URLs in the workflow."""
-        workflow = self.get_workflow(pipeline_id)
+        workflow = await self.get_workflow(pipeline_id)
         if not workflow:
             raise ValueError(f"Workflow not found for pipeline {pipeline_id}")
         
@@ -109,6 +158,8 @@ class WorkflowManager:
                 user
             )
         
+        # Store updated workflow state
+        await self._store_workflow_state(pipeline_id, workflow)
         await self._broadcast_workflow_update(workflow)
         return workflow
     
@@ -119,7 +170,7 @@ class WorkflowManager:
         user: str = "user"
     ) -> WorkflowState:
         """Manually update schema in the workflow."""
-        workflow = self.get_workflow(pipeline_id)
+        workflow = await self.get_workflow(pipeline_id)
         if not workflow:
             raise ValueError(f"Workflow not found for pipeline {pipeline_id}")
         
@@ -149,6 +200,8 @@ class WorkflowManager:
                 user
             )
         
+        # Store updated workflow state
+        await self._store_workflow_state(pipeline_id, workflow)
         await self._broadcast_workflow_update(workflow)
         return workflow
     
@@ -160,7 +213,7 @@ class WorkflowManager:
         user: str = "user"
     ) -> WorkflowState:
         """Process an approval request."""
-        workflow = self.get_workflow(pipeline_id)
+        workflow = await self.get_workflow(pipeline_id)
         if not workflow:
             raise ValueError(f"Workflow not found for pipeline {pipeline_id}")
         
@@ -192,6 +245,8 @@ class WorkflowManager:
                     user
                 )
         
+        # Store updated workflow state
+        await self._store_workflow_state(pipeline_id, workflow)
         await self._broadcast_workflow_update(workflow)
         return workflow
     
@@ -312,9 +367,9 @@ class WorkflowManager:
             "progress": workflow.get_phase_progress()
         }, workflow.pipeline_id)
     
-    def get_workflow_summary(self, pipeline_id: str) -> Dict[str, Any]:
+    async def get_workflow_summary(self, pipeline_id: str) -> Dict[str, Any]:
         """Get a summary of the workflow state."""
-        workflow = self.get_workflow(pipeline_id)
+        workflow = await self.get_workflow(pipeline_id)
         if not workflow:
             return {"error": "Workflow not found"}
         

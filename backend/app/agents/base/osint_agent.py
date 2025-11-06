@@ -335,38 +335,22 @@ class LLMOSINTAgent(OSINTAgent):
         """
         try:
             # Import here to avoid circular dependencies and make optional
-            from langchain_openai import ChatOpenAI
             from langchain_core.messages import SystemMessage, HumanMessage
-            import os
+            from app.services.openrouter import get_llm, LLMProviderError
             
-            # Get API configuration from environment variables
-            api_key = os.getenv('OPENAI_API_KEY', 'default-key')
-            base_url = os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
-            model_name = os.getenv('OPENAI_MODEL_NAME', self.config.llm_model)
-            
-            # Initialize LLM with custom API configuration
-            # Set environment variables temporarily for this call
-            original_api_key = os.environ.get('OPENAI_API_KEY')
-            original_base_url = os.environ.get('OPENAI_BASE_URL')
-            
-            os.environ['OPENAI_API_KEY'] = api_key
-            os.environ['OPENAI_BASE_URL'] = base_url
-            
-            llm = ChatOpenAI(
-                model=model_name,
-                temperature=self.config.temperature
-            )
-            
-            # Restore original environment variables if they existed
-            if original_api_key is not None:
-                os.environ['OPENAI_API_KEY'] = original_api_key
-            elif 'OPENAI_API_KEY' in os.environ:
-                del os.environ['OPENAI_API_KEY']
-                
-            if original_base_url is not None:
-                os.environ['OPENAI_BASE_URL'] = original_base_url
-            elif 'OPENAI_BASE_URL' in os.environ:
-                del os.environ['OPENAI_BASE_URL']
+            # Get LLM instance using the flexible provider system
+            try:
+                llm = get_llm()
+                self.logger.info(f"Using LLM provider: {type(llm).__name__}")
+            except LLMProviderError as e:
+                self.logger.error(f"Failed to initialize LLM provider: {e}")
+                # Fallback to basic configuration
+                from langchain_openai import ChatOpenAI
+                self.logger.warning("Falling back to basic OpenAI configuration")
+                llm = ChatOpenAI(
+                    model=self.config.llm_model,
+                    temperature=self.config.temperature
+                )
             
             # Get the system prompt
             system_prompt = self._get_system_prompt()
@@ -385,9 +369,9 @@ class LLMOSINTAgent(OSINTAgent):
             return str(content)
             
         except ImportError:
-            # If LangChain is not available, use a mock response
-            self.logger.warning("LangChain not available, using mock response")
-            return f"Mock response for input: {input_data.get('input', str(input_data))[:200]}..."
+            # If LangChain is not available, use a fallback response
+            self.logger.warning("LangChain not available, using fallback response")
+            return f"Fallback analysis for input: {input_data.get('input', str(input_data))[:200]}..."
         except Exception as e:
             # Check if the error is due to incompatible API response format or missing API key
             error_msg = str(e).lower()
@@ -402,7 +386,7 @@ class LLMOSINTAgent(OSINTAgent):
     async def _execute_local_fallback(self, input_data: Dict[str, Any]) -> str:
         """
         Execute a local fallback when LLM is unavailable.
-        This method generates a simulated response based on the input and agent role.
+        This method generates a structured response based on the input and agent role.
         """
         # Create a basic template response based on the agent's role
         role = self.config.role

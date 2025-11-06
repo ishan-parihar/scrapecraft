@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-11-05T15:28:14.589059",
+  "steps": {
+    "start": {
+      "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 111] Connect call failed ('::1', 8000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 8000)]"
+    },
+    "websocket": false,
+    "status": {
+      "error": "No investigation ID"
+    },
+    "active": [],
+    "websocket_messages": []
+  },
+  "analysis": {
+    "issues_found": [
+      "\u274c API start failed",
+      "\u274c WebSocket connection failed",
+      "\u274c Status polling failed",
+      "\u274c No WebSocket messages received"
+    ],
+    "working_components": [],
+    "recommendations": [
+      "\ud83d\udd27 Fix WebSocket endpoint mismatch between frontend and backend",
+      "\ud83d\udd27 Update frontend to use /api/osint/ws/{investigation_id}",
+      "\ud83d\udd27 Add WebSocket broadcasting in AI investigation service"
+    ]
+  }
+}

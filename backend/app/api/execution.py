@@ -21,7 +21,7 @@ class ExecuteRequest(BaseModel):
     pipeline_id: str
     code: str
     urls: List[str]
-    schema: Dict[str, Any]
+    execution_schema: Dict[str, Any]
     api_key: Optional[str] = None
 
 class ExecuteResponse(BaseModel):

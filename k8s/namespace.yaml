@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: scrapecraft
+  labels:
+    name: scrapecraft
+    environment: production
+    app.kubernetes.io/name: scrapecraft
+    app.kubernetes.io/component: infrastructure
+spec:
+  finalizers:
+  - kubernetes

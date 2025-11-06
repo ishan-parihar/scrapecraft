@@ -15,7 +15,11 @@ import logging
 # from langchain.llms import OpenAI
 # from langchain.prompts import PromptTemplate
 
-from ..base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../../../../..'))
+
+from app.agents.base.osint_agent import OSINTAgent, LLMOSINTAgent, AgentConfig, AgentResult
 
 
 class ObjectiveDefinitionAgent(LLMOSINTAgent):
@@ -63,7 +67,7 @@ class ObjectiveDefinitionAgent(LLMOSINTAgent):
         Placeholder implementation - will be implemented with LangChain.
         """
         # This will be implemented when LangChain dependencies are available
-        # For now, return a mock agent
+        # For now, return a placeholder agent
         return self
     
     def _get_system_prompt(self) -> str:
