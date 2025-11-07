@@ -31,6 +31,35 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.VERSION}")
     
+    # Validate configuration first
+    try:
+        from app.config_validator import validate_configuration, validate_production_mode
+        config_validation = validate_configuration()
+        
+        if config_validation["status"] == "error":
+            logger.error("CRITICAL: Configuration validation failed!")
+            for error in config_validation["errors"]:
+                logger.error(f"  - {error}")
+            logger.error("Application may not function correctly without proper configuration")
+        else:
+            logger.info("Configuration validation passed")
+            logger.info(f"Configured services: {config_validation['configured_services']}")
+            if config_validation["warnings"]:
+                for warning in config_validation["warnings"]:
+                    logger.warning(f"  - {warning}")
+        
+        # Production mode validation
+        if not settings.DEBUG:
+            prod_validation = validate_production_mode()
+            if not prod_validation["production_ready"]:
+                logger.warning("System not fully production-ready")
+                for warning in prod_validation["warnings"]:
+                    logger.warning(f"  - {warning}")
+    
+    except Exception as e:
+        logger.error(f"Configuration validation failed: {e}")
+        logger.error("Application may not function correctly")
+    
     # Initialize database persistence
     try:
         from app.services.database import db_persistence

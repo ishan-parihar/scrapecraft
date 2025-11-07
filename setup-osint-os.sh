@@ -142,11 +142,12 @@ else
     echo "✅ Development dependencies installed"
 fi
 
-# Install Playwright browsers for premium search
+# Install Playwright browsers for premium search (optional)
 echo "🌐 Installing Playwright browsers for premium search..."
 source venv/bin/activate
-playwright install chromium --with-deps
-echo "✅ Playwright browsers installed"
+# Try to install browsers without system dependencies
+playwright install chromium || echo "⚠️  Playwright browser installation failed (premium search may not work)"
+echo "✅ Playwright setup completed"
 
 # Database setup
 echo "🗄️  Setting up database..."

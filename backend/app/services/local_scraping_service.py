@@ -59,9 +59,14 @@ class LocalScrapingService:
         results = []
         
         if not SCRAPEGRAPH_AVAILABLE:
-            # Fallback to mock implementation
-            logger.warning("ScrapeGraphAI not available, using fallback implementation")
-            return await self._fallback_execute_pipeline(urls, schema, prompt)
+            # ScrapeGraphAI not available - return error instead of mock data
+            error_msg = "ScrapeGraphAI is not available. Install ScrapeGraphAI or configure alternative scraping service."
+            logger.error(error_msg)
+            return [{
+                "error": error_msg,
+                "service_unavailable": True,
+                "urls_attempted": urls
+            }]
         
         try:
             # Handle single vs multiple URLs
@@ -176,56 +181,17 @@ class LocalScrapingService:
         
         return results
     
-    async def _fallback_execute_pipeline(
-        self,
-        urls: List[str],
-        schema: Optional[Dict[str, Any]],
-        prompt: str
-    ) -> List[Dict]:
-        """Fallback implementation when ScrapeGraphAI is not available."""
-        results = []
-        
-        for url in urls:
-            # Mock scraping result in the expected format
-            mock_data = {
-                "url": url,
-                "title": f"Fallback Title for {url}",
-                "content": f"This is fallback scraped content from {url} (ScrapeGraphAI not available)",
-                "status": "success",
-                "scraped_at": "2025-10-31T00:00:00Z",
-                "metadata": {
-                    "model_used": self.llm_config.get("model", "unknown"),
-                    "prompt": prompt,
-                    "schema_provided": schema is not None,
-                    "note": "This is fallback data - ScrapeGraphAI is not available"
-                }
-            }
-            
-            # If schema is provided, try to match it
-            if schema:
-                for key in schema.keys():
-                    if key not in mock_data:
-                        mock_data[key] = f"Fallback {key} value"
-            
-            # Return in the expected ScrapingResult format
-            mock_result = {
-                "url": url,
-                "success": True,
-                "data": mock_data,
-                "error": None
-            }
-            
-            results.append(mock_result)
-            
-        logger.info(f"Fallback scraped {len(urls)} URLs successfully")
-        return results
-    
     async def search_urls(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:
         """Search for URLs using local ScrapeGraphAI SearchGraph."""
         if not SCRAPEGRAPH_AVAILABLE:
-            # Fallback to mock search
-            logger.warning("ScrapeGraphAI not available, using fallback search")
-            return await self._fallback_search_urls(query, max_results)
+            # ScrapeGraphAI not available - return error instead of mock data
+            error_msg = "ScrapeGraphAI is not available. Install ScrapeGraphAI or configure alternative search service."
+            logger.error(error_msg)
+            return [{
+                "error": error_msg,
+                "service_unavailable": True,
+                "query": query
+            }]
         
         try:
             # Build graph config for search
@@ -298,23 +264,11 @@ class LocalScrapingService:
             
         except Exception as e:
             logger.error(f"Search failed for query '{query}': {e}")
-            return await self._fallback_search_urls(query, max_results)
-    
-    async def _fallback_search_urls(self, query: str, max_results: int) -> List[Dict[str, str]]:
-        """Fallback search implementation when ScrapeGraphAI is not available."""
-        # Generate some mock URLs based on the query
-        mock_urls = [
-            {
-                'url': f'https://example.com/search?q={query.replace(" ", "+")}',
-                'description': f'Fallback search result for: {query}'
-            },
-            {
-                'url': f'https://fallbacksite.com/{query.replace(" ", "-").lower()}',
-                'description': f'Fallback website about: {query}'
-            }
-        ]
-        
-        return mock_urls[:max_results]
+            return [{
+                "error": f"Search unavailable: {e}",
+                "service_unavailable": True,
+                "query": query
+            }]
     
     async def validate_config(self) -> bool:
         """Validate if the local scraping configuration is working."""

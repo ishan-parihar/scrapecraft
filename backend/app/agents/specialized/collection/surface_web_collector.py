@@ -201,7 +201,7 @@ class SurfaceWebCollectorAgent(LLMOSINTAgent):
         
         try:
             # Import the real search service
-            from ..real_search_service import RealSearchService
+            from ....services.real_search_service import RealSearchService
             
             async with RealSearchService() as search_service:
                 if engine == "google":

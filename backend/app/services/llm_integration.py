@@ -91,15 +91,11 @@ class LLMIntegrationService:
             )
         
         else:
-            # Fallback to mock provider for development
-            logger.warning("No valid LLM provider configured, using mock service")
-            return LLMProvider(
-                name="Mock LLM",
-                base_url="",
-                api_key="",
-                model="mock",
-                provider_type="mock",
-                headers={}
+            # No valid LLM provider configured - raise error instead of using mock
+            raise ValueError(
+                "No valid LLM provider configured. Please configure OPENROUTER_API_KEY, "
+                "OPENAI_API_KEY, or enable CUSTOM_LLM. Mock services have been disabled "
+                "to ensure real OSINT functionality."
             )
     
     async def generate_intelligence_insights(
@@ -117,9 +113,6 @@ class LLMIntegrationService:
         Returns:
             Dictionary with intelligence insights and analysis
         """
-        
-        if self.provider.provider_type == "mock":
-            return self._generate_mock_intelligence(context, investigation_query)
         
         try:
             # Prepare context for LLM
@@ -219,8 +212,8 @@ class LLMIntegrationService:
         except Exception as e:
             self.logger.error(f"LLM intelligence generation failed: {e}")
             return {
-                "error": str(e),
-                "fallback_insights": self._generate_mock_intelligence(context, investigation_query)
+                "error": f"Intelligence analysis unavailable: {e}",
+                "service_unavailable": True
             }
     
     async def enhance_search_query(
@@ -238,9 +231,6 @@ class LLMIntegrationService:
         Returns:
             Dictionary with enhanced queries and search strategy
         """
-        
-        if self.provider.provider_type == "mock":
-            return self._generate_mock_search_enhancement(original_query)
         
         try:
             system_prompt = """You are an expert OSINT researcher. 
@@ -272,11 +262,17 @@ class LLMIntegrationService:
                     "generated_at": datetime.utcnow().isoformat()
                 }
             except json.JSONDecodeError:
-                return self._generate_mock_search_enhancement(original_query)
+                return {
+                    "error": f"Search enhancement unavailable: {e}",
+                    "service_unavailable": True
+                }
                 
         except Exception as e:
             self.logger.error(f"Query enhancement failed: {e}")
-            return self._generate_mock_search_enhancement(original_query)
+            return {
+                "error": f"Search enhancement unavailable: {e}",
+                "service_unavailable": True
+            }
     
     async def analyze_data_for_patterns(
         self, 
@@ -293,9 +289,6 @@ class LLMIntegrationService:
         Returns:
             Dictionary with pattern analysis results
         """
-        
-        if self.provider.provider_type == "mock":
-            return self._generate_mock_pattern_analysis(data, analysis_type)
         
         try:
             data_summary = json.dumps(data, indent=2, default=str)[:2000]  # Limit size
@@ -331,17 +324,20 @@ class LLMIntegrationService:
                     "generated_at": datetime.utcnow().isoformat()
                 }
             except json.JSONDecodeError:
-                return self._generate_mock_pattern_analysis(data, analysis_type)
+                return {
+                    "error": "Pattern analysis failed - invalid response format",
+                    "service_unavailable": True
+                }
                 
         except Exception as e:
             self.logger.error(f"Pattern analysis failed: {e}")
-            return self._generate_mock_pattern_analysis(data, analysis_type)
+            return {
+                "error": f"Pattern analysis unavailable: {e}",
+                "service_unavailable": True
+            }
     
     async def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
         """Make API call to LLM provider with timeout and error handling."""
-        
-        if self.provider.provider_type == "mock":
-            return self._mock_llm_response(system_prompt, user_prompt)
         
         payload = {
             "model": self.provider.model,
@@ -477,100 +473,8 @@ class LLMIntegrationService:
         
         return "\n".join(summary_parts) if summary_parts else "No data collected"
     
-    def _generate_mock_intelligence(self, context: Dict[str, Any], query: str) -> Dict[str, Any]:
-        """Generate mock intelligence when no LLM provider is available."""
-        
-        return {
-            "insights": {
-                "executive_summary": f"Analysis of '{query}' reveals standard OSINT patterns requiring further investigation.",
-                "key_findings": [
-                    "Limited data available from current sources",
-                    "Additional sources may be required for comprehensive analysis",
-                    "Preliminary assessment suggests moderate information availability"
-                ],
-                "entity_analysis": {
-                    "persons": [],
-                    "organizations": [],
-                    "locations": []
-                },
-                "pattern_recognition": {
-                    "observed_patterns": ["Limited data collection"],
-                    "confidence": "Low"
-                },
-                "risk_assessment": {
-                    "overall_risk": "Unknown",
-                    "factors": ["Insufficient data for risk assessment"]
-                },
-                "strategic_insights": [
-                    "Consider expanding data collection sources",
-                    "Verify search parameters and query effectiveness"
-                ],
-                "recommendations": [
-                    "Expand search to additional data sources",
-                    "Refine search parameters for better results",
-                    "Consider specialized investigation techniques"
-                ]
-            },
-            "confidence": 0.3,
-            "source": "mock_analysis",
-            "generated_at": datetime.utcnow().isoformat(),
-            "provider": "Mock LLM",
-            "note": "Mock intelligence due to unavailable LLM provider"
-        }
-    
-    def _generate_mock_search_enhancement(self, original_query: str) -> Dict[str, Any]:
-        """Generate mock search query enhancements."""
-        
-        return {
-            "enhanced_queries": {
-                "primary": original_query,
-                "alternatives": [
-                    f"{original_query} overview",
-                    f"{original_query} analysis",
-                    f"{original_query} information"
-                ],
-                "key_terms": original_query.split(),
-                "exclusion_terms": [],
-                "strategy": "Use multiple search engines and source types"
-            },
-            "original_query": original_query,
-            "provider": "Mock LLM",
-            "generated_at": datetime.utcnow().isoformat()
-        }
-    
-    def _generate_mock_pattern_analysis(self, data: Dict[str, Any], analysis_type: str) -> Dict[str, Any]:
-        """Generate mock pattern analysis."""
-        
-        return {
-            "pattern_analysis": {
-                "observed_patterns": ["Insufficient data for pattern analysis"],
-                "anomalies": [],
-                "connections": [],
-                "temporal_patterns": [],
-                "significance": "Low - limited data available"
-            },
-            "analysis_type": analysis_type,
-            "confidence": 0.2,
-            "provider": "Mock LLM",
-            "generated_at": datetime.utcnow().isoformat(),
-            "note": "Mock pattern analysis due to insufficient data or unavailable LLM"
-        }
-    
-    def _mock_llm_response(self, system_prompt: str, user_prompt: str) -> str:
-        """Generate mock LLM response for development."""
-        
-        return json.dumps({
-            "response": "Mock LLM response - no actual LLM provider configured",
-            "system_prompt_length": len(system_prompt),
-            "user_prompt_length": len(user_prompt),
-            "note": "Configure a valid LLM provider in settings to enable real AI analysis"
-        })
-    
     async def validate_connection(self) -> bool:
         """Validate LLM provider connection."""
-        
-        if self.provider.provider_type == "mock":
-            return True
         
         try:
             payload = {
